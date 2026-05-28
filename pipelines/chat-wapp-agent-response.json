@@ -1,0 +1,103 @@
+{
+  "name": "chat-wapp-agent-response",
+  "description": "WApp chat response pipeline: extract entities, search graph memory, consolidate question/history/memories, then answer through the WApp webhook.",
+  "version": 2,
+  "tags": [
+    "chat",
+    "wapp",
+    "http-trigger",
+    "webhook-demo",
+    "graph-memory"
+  ],
+  "input": {
+    "source": "chat-wapp",
+    "agent": "codex",
+    "workingDirectory": "/Users/mini/wingmen/wingman21",
+    "topKPerEntity": 4,
+    "maxEntities": 8,
+    "maxMatches": 20
+  },
+  "steps": [
+    {
+      "id": "extract-chat-entities",
+      "name": "extract-chat-entities",
+      "description": "Extract entities being discussed in the latest WApp chat message.",
+      "type": "agent",
+      "agent": "$.agent",
+      "directory": "$.workingDirectory",
+      "timeoutMs": 600000,
+      "input": {
+        "pick": {
+          "message": "$.message",
+          "history": "$.history",
+          "chatId": "$.chatId",
+          "userNpub": "$.userNpub"
+        }
+      },
+      "prompt": "You are entity extraction for a WApp chat response pipeline.\n\nUse the latest message as primary and the history as context. Extract entities, concepts, projects, people, systems, decisions, constraints, repo names, files, tasks, and product terms worth searching in the agent memory graph.\n\nReturn compact JSON only with this exact shape:\n{\n  \"summary\": \"one sentence describing what the user is asking about\",\n  \"entities\": [\n    {\"name\":\"\", \"type\":\"project|file|person|system|decision|constraint|concept|repo|task|workflow|other\", \"query\":\"search query text\", \"reason\":\"why this matters\"}\n  ],\n  \"confidence\": 0.0\n}\n\nPrefer 3-8 specific entities. Avoid generic words. Do not answer the user yet.",
+      "assign": "$.entityExtraction"
+    },
+    {
+      "id": "search-agent-memory-graph",
+      "name": "search-agent-memory-graph",
+      "description": "Search agent memory graph for each extracted entity.",
+      "type": "code",
+      "function": "memory.searchEntities",
+      "input": {
+        "pick": {
+          "prompt": "$.message",
+          "entities": "$.entityExtraction.entities",
+          "topKPerEntity": "$.topKPerEntity",
+          "maxEntities": "$.maxEntities",
+          "maxMatches": "$.maxMatches",
+          "ownerNpub": "$.userNpub"
+        }
+      },
+      "assign": "$.graphSearch"
+    },
+    {
+      "id": "consolidate-chat-context",
+      "name": "consolidate-chat-context",
+      "description": "Consolidate the question, chat history, and graph memory matches into answer-ready context.",
+      "type": "agent",
+      "agent": "$.agent",
+      "directory": "$.workingDirectory",
+      "timeoutMs": 600000,
+      "input": {
+        "pick": {
+          "message": "$.message",
+          "history": "$.history",
+          "entityExtraction": "$.entityExtraction",
+          "graphSearch": "$.graphSearch",
+          "chatId": "$.chatId",
+          "userNpub": "$.userNpub"
+        }
+      },
+      "prompt": "You are context consolidation for a WApp chat response pipeline.\n\nInputs include the current question/message, prior chat history, extracted entities, and raw graph memory matches. Consolidate these into answer-ready context for the final answering agent.\n\nRules:\n- Treat graph memories as potentially useful but not authoritative.\n- Keep only memories and history that materially affect the answer.\n- Preserve uncertainty and contradictions.\n- Do not answer the user yet.\n\nReturn compact JSON only with this exact shape:\n{\n  \"question\": \"the latest user question in clear form\",\n  \"relevantHistory\": [\"short bullets from prior chat history\"],\n  \"relevantMemories\": [{\"title\":\"\", \"entity\":\"\", \"summary\":\"\", \"source\":\"\", \"confidence\":\"high|medium|low\"}],\n  \"memoryWarnings\": [\"warnings or reasons memory may be incomplete\"],\n  \"answerGuidance\": \"specific guidance for the final answer\",\n  \"confidence\": 0.0\n}",
+      "assign": "$.consolidatedContext"
+    },
+    {
+      "id": "answer-question",
+      "name": "answer-question",
+      "description": "Answer the user's question and deliver the response to the WApp webhook.",
+      "type": "agent",
+      "agent": "$.agent",
+      "directory": "$.workingDirectory",
+      "timeoutMs": 900000,
+      "input": {
+        "pick": {
+          "source": "$.source",
+          "chatId": "$.chatId",
+          "message": "$.message",
+          "history": "$.history",
+          "entityExtraction": "$.entityExtraction",
+          "graphSearch": "$.graphSearch",
+          "consolidatedContext": "$.consolidatedContext",
+          "webhook": "$.webhook"
+        }
+      },
+      "prompt": "You are the final answer agent for a demo Wingman WApp chat.\n\nUse the current message, chat history, extracted entities, graph search output, and consolidated context. Graph memories are potential context, not unquestioned truth. Answer the user's actual question directly and concisely.\n\nDelivery requirement before pipeline completion:\n1. POST the final user-facing answer to selectedInput.webhook.url.\n2. Include the header named by selectedInput.webhook.authHeader, usually x-chat-wapp-token, with selectedInput.webhook.token as its value.\n3. Use JSON body: {\"chatId\":\"<selected chatId>\",\"status\":\"ok\",\"response\":\"<final answer>\",\"metadata\":{\"source\":\"chat-wapp-agent-response\",\"graphUsed\":true_or_false}}.\n4. Only after that webhook returns HTTP 200, use the pipeline callback contract to complete this step with result: {\"response\":\"<same final answer>\",\"webhookDelivered\":true,\"chatId\":\"<selected chatId>\",\"graphUsed\":true_or_false,\"source\":\"chat-wapp-agent-response\"}.\n\nDo not stream multiple answers. Do not mention internal callback URLs or tokens to the user. If the WApp webhook fails, fix the request and retry rather than marking the pipeline failed.",
+      "assign": "$.agentResponse"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pipeline Chat WApp</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section class="login" id="login">
+        <div>
+          <h1>Pipeline Chat</h1>
+          <p>Sign in with Nostr to start a local chat backed by a Wingmen pipeline webhook.</p>
+        </div>
+        <button id="loginButton">Sign in with Nostr</button>
+        <p class="error" id="loginError"></p>
+      </section>
+
+      <section class="shell hidden" id="shell">
+        <aside class="sidebar">
+          <div class="sidebarTop">
+            <div>
+              <div class="eyebrow">Signed in</div>
+              <div class="npub" id="npub"></div>
+            </div>
+            <button id="logoutButton" title="Sign out">Sign out</button>
+          </div>
+          <button class="newChat" id="newChatButton">New chat</button>
+          <nav id="chatList" class="chatList"></nav>
+        </aside>
+
+        <section class="chatPane">
+          <header class="chatHeader">
+            <h2 id="chatTitle">New chat</h2>
+            <div class="status" id="status">Ready</div>
+          </header>
+          <div class="messages" id="messages"></div>
+          <form class="composer" id="composer">
+            <textarea id="messageInput" rows="1" placeholder="Send a message"></textarea>
+            <button id="sendButton" type="submit">Send</button>
+          </form>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
