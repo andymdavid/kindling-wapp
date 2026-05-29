@@ -1,4 +1,4 @@
-# Chat WApp
+# WApp Starter Pack
 
 A demo WApp that logs in with a Nostr browser extension, stores chats in local SQLite, starts a Wingmen pipeline for each user message, and receives the agent answer through a webhook.
 
