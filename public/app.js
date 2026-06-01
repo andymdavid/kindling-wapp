@@ -244,253 +244,253 @@ function buildPrototypeDataModel(prospects) {
     summary: "Adapt helps businesses improve workflows with practical AI, automation, training, and implementation support.",
     createdAt: now,
     updatedAt: now,
-    avatar.className = "accessAvatar";
-    if (profile?.picture) {
-      const img = document.createElement("img");
-      img.src = profile.picture;
-      img.alt = "";
-      avatar.appendChild(img);
-    } else {
-      avatar.textContent = profileInitial(rule, profile);
-    }
-    const label = document.createElement("div");
-    label.className = "accessLabel";
-    const name = document.createElement("strong");
-    name.textContent = displayNameForRule(rule, profile);
-    const meta = document.createElement("span");
-    meta.textContent = `${rule.role === "edit" ? "Edit" : "Read"} - ${rule.npub}`;
-    label.append(name, meta);
-    identity.append(avatar, label);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = "Remove";
-    button.disabled = !canEdit;
-    button.addEventListener("click", () => removeAccessRule(rule));
-    item.append(identity, button);
-    list.appendChild(item);
-    if (!profile) {
-      void resolveProfile(rule).then(() => updateAccessRuleProfile(rule));
-    }
-  }
-}
-
-function updateAccessRuleProfile(rule) {
-  const item = $(`accessList`).querySelector(`[data-pubkey="${CSS.escape(rule.pubkey)}"]`);
-  const profile = cachedProfile(rule.pubkey);
-  if (!item || !profile) return;
-  const avatar = item.querySelector(".accessAvatar");
-  const name = item.querySelector(".accessLabel strong");
-  if (avatar) {
-    avatar.innerHTML = "";
-    if (profile.picture) {
-      const img = document.createElement("img");
-      img.src = profile.picture;
-      img.alt = "";
-      avatar.appendChild(img);
-    } else {
-      avatar.textContent = profileInitial(rule, profile);
-    }
-  }
-  if (name) name.textContent = displayNameForRule(rule, profile);
-}
-
-async function resolveProfile(rule) {
-  const existing = cachedProfile(rule.pubkey);
-  if (existing) return existing;
-  const profile = await fetchNostrProfile(rule.pubkey).catch(() => null);
-  const normalized = {
-    pubkey: rule.pubkey,
-    name: typeof profile?.name === "string" ? profile.name : "",
-    displayName: typeof profile?.display_name === "string" ? profile.display_name : typeof profile?.displayName === "string" ? profile.displayName : "",
-    picture: typeof profile?.picture === "string" ? profile.picture : "",
-    cachedAt: Date.now(),
   };
-  state.profiles[rule.pubkey] = normalized;
-  saveProfileCache();
-  return normalized;
-}
-
-async function fetchNostrProfile(pubkey) {
-  const attempts = PROFILE_RELAYS.map((relay) => fetchProfileFromRelay(relay, pubkey));
-  const result = await Promise.any(attempts);
-  return result;
-}
-
-function fetchProfileFromRelay(relayUrl, pubkey) {
-  return new Promise((resolve, reject) => {
-    const subId = `profile-${pubkey.slice(0, 8)}-${Math.random().toString(16).slice(2)}`;
-    let bestEvent = null;
-    let settled = false;
-    const socket = new WebSocket(relayUrl);
-    const timer = setTimeout(() => {
-      finish(bestEvent ? parseProfileEvent(bestEvent) : null);
-    }, 2500);
-
-    function finish(value, error) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try {
-        socket.send(JSON.stringify(["CLOSE", subId]));
-      } catch {}
-      try {
-        socket.close();
-      } catch {}
-      if (error || !value) reject(error || new Error("profile not found"));
-      else resolve(value);
-    }
-
-    socket.addEventListener("open", () => {
-      socket.send(JSON.stringify(["REQ", subId, { kinds: [0], authors: [pubkey], limit: 1 }]));
-    });
-    socket.addEventListener("message", (event) => {
-      let message;
-      try {
-        message = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-      if (!Array.isArray(message)) return;
-      if (message[0] === "EVENT" && message[1] === subId && message[2]?.kind === 0) {
-        if (!bestEvent || Number(message[2].created_at || 0) > Number(bestEvent.created_at || 0)) bestEvent = message[2];
-      }
-      if (message[0] === "EOSE" && message[1] === subId) finish(bestEvent ? parseProfileEvent(bestEvent) : null);
-    });
-    socket.addEventListener("error", () => finish(null, new Error(`relay failed: ${relayUrl}`)));
+  const offeringNames = [...new Set(prospects.map((prospect) => prospect.offering))];
+  const marketProfiles = offeringNames.map((offering, index) => {
+    const profileKey = slugify(offering);
+    const profileId = stableUuid(`market-profile:${profileKey}`);
+    const versionId = stableUuid(`market-profile-version:${profileKey}:1`);
+    return {
+      id: profileId,
+      ownerCompanyId: ownerCompany.id,
+      profileKey,
+      name: offering,
+      targetSegment: inferTargetSegment(offering),
+      currentVersionId: versionId,
+      createdAt: now + index,
+      updatedAt: now + index,
+      currentVersion: {
+        id: versionId,
+        profileId,
+        versionNumber: 1,
+        summary: `${offering} positioning for the prototype deck.`,
+        rationale: "Generated from the UX prototype seed data and shaped to the DataModel.md contract.",
+        sourceReferences: [],
+        structured: {
+          profile: { profileKey, name: offering, targetSegment: inferTargetSegment(offering) },
+          positioning: { statement: offering, proofPoints: ["Source-backed trigger", "Reachability check", "Human-reviewed outreach"] },
+          services: [{ id: stableUuid(`service:${profileKey}`), key: profileKey, name: offering, description: offering, outcomes: [], deliveryModes: [], typicalBudgetBand: "" }],
+          idealCustomerProfile: { industries: [], employeeCountBuckets: [], locations: ["Western Australia"], positiveSignals: [], exclusionRules: [] },
+          buyingTriggers: [],
+          outreachVoice: { tone: "plain-spoken", directness: "medium", proofThreshold: "source_backed_claims_only" },
+          matchingRules: [],
+        },
+      },
+    };
   });
+  const profileByOffering = new Map(marketProfiles.map((profile) => [profile.name, profile]));
+  const companies = prospects.map((prospect, index) => {
+    const profile = profileByOffering.get(prospect.offering);
+    const contactPaths = [
+      prospect.contact.email ? { type: "email", value: prospect.contact.email, confidence: confidenceToNumber(prospect.contact.confidence) } : null,
+      prospect.contact.phone ? { type: "phone", value: prospect.contact.phone, confidence: confidenceToNumber(prospect.contact.confidence) } : null,
+    ].filter(Boolean);
+    return {
+      id: stableUuid(`company:${prospect.id}`),
+      name: prospect.company,
+      location: parseDescriptor(prospect.descriptor).location,
+      industry: parseDescriptor(prospect.descriptor).industry,
+      website: prospect.evidence.find((item) => item.type === "website")?.url || "",
+      dataRing: prospect.status === "ready" ? "outreach" : prospect.status === "partial" ? "matched" : "enhanced",
+      duplicateStatus: "unique",
+      enrichmentStatus: "complete",
+      confidence: prospect.fitScore / 100,
+      profile: {
+        summary: prospect.gap,
+        description: prospect.descriptor,
+        size: { employeeCountBucket: parseDescriptor(prospect.descriptor).employeeCountBucket, locationCount: 1, confidence: 0.7 },
+        contactPaths,
+        primaryPersonIds: [stableUuid(`person:${prospect.id}:${prospect.contact.name}`)],
+        currentCustomerProfileVersionId: stableUuid(`customer-profile-version:${prospect.id}:1`),
+        prototypeSlug: prospect.id,
+        displayDescriptor: prospect.descriptor,
+        mode: prospect.mode,
+        warmth: prospect.warmth,
+        whyNow: prospect.whyNow,
+        wedge: prospect.angle,
+        history: prospect.history,
+        stageCosts: prospect.stageCosts,
+        researchBrief: prospect.researchBrief || null,
+        marketProfileName: prospect.offering,
+      },
+      createdAt: now + index,
+      updatedAt: now + index,
+      marketProfileId: profile.id,
+      marketProfileVersionId: profile.currentVersionId,
+    };
+  });
+  const people = prospects.map((prospect, index) => {
+    const company = companies[index];
+    return {
+      id: company.profile.primaryPersonIds[0],
+      companyId: company.id,
+      name: prospect.contact.name,
+      role: prospect.contact.role,
+      relationship: inferRelationship(prospect.contact.role),
+      buyerConfidence: confidenceToNumber(prospect.contact.confidence),
+      influencerConfidence: confidenceToNumber(prospect.contact.confidence),
+      profileUrls: [],
+      notes: `${prospect.contact.source}. ${prospect.contact.confidence} confidence.`,
+      createdAt: now + index,
+      updatedAt: now + index,
+    };
+  });
+  const sources = prospects.flatMap((prospect, prospectIndex) => {
+    const company = companies[prospectIndex];
+    return prospect.evidence.map((item, sourceIndex) => ({
+      id: stableUuid(`source:${prospect.id}:${sourceIndex}:${item.label}`),
+      companyId: company.id,
+      sourceType: normalizeSourceType(item.type),
+      url: item.url,
+      title: item.label,
+      summary: `${item.source} - ${item.captured}`,
+      extractedData: { captured: item.captured, originalType: item.type },
+      confidence: confidenceToNumber(item.confidence),
+      lastCheckedAt: item.captured === "Today" ? now : null,
+      lastCheckedByRunId: item.captured === "Research brief" ? stableUuid(`run:${prospect.id}:research`) : null,
+      termsNotes: "",
+      createdAt: now + sourceIndex,
+    }));
+  });
+  const matches = prospects.map((prospect, index) => {
+    const company = companies[index];
+    const profile = profileByOffering.get(prospect.offering);
+    return {
+      id: stableUuid(`match:${prospect.id}:${profile.profileKey}`),
+      companyId: company.id,
+      marketProfileId: profile.id,
+      marketProfileVersionId: profile.currentVersionId,
+      profileKey: profile.profileKey,
+      rank: index + 1,
+      reason: prospect.gap,
+      score: {
+        overallScore: prospect.fitScore,
+        drivers: {
+          serviceFit: Math.min(0.98, prospect.fitScore / 100),
+          timing: prospect.whyNow ? 0.78 : 0.32,
+          reachability: prospect.contact.email || prospect.contact.phone ? 0.75 : 0.28,
+          evidenceQuality: prospect.status === "ready" ? 0.9 : prospect.status === "partial" ? 0.68 : 0.46,
+        },
+        matchedServices: [{ serviceKey: profile.profileKey, score: prospect.fitScore / 100, reason: prospect.gap }],
+        risks: prospect.contact.email || prospect.contact.phone ? [] : ["No direct contact path found yet."],
+        nextBestAction: prospect.contact.email ? "Review outreach email." : prospect.contact.phone ? "Call contact." : "Open dossier to find a path.",
+      },
+      createdAt: now + index,
+    };
+  });
+  const outreachDrafts = prospects.map((prospect, index) => {
+    const company = companies[index];
+    const match = matches[index];
+    const email = buildOutreachEmail(prospect);
+    return {
+      id: stableUuid(`outreach:${prospect.id}:1`),
+      companyId: company.id,
+      companyMatchId: match.id,
+      marketProfileId: match.marketProfileId,
+      marketProfileVersionId: match.marketProfileVersionId,
+      pitchText: email.body,
+      subject: email.subject,
+      sections: email.sections,
+      writingRules: outreachWritingRules(),
+      status: "draft",
+      sourceRunId: stableUuid(`run:${prospect.id}:outreach`),
+      createdAt: now + index,
+      updatedAt: now + index,
+    };
+  });
+  const activities = prospects.flatMap((prospect, prospectIndex) => {
+    const company = companies[prospectIndex];
+    return [
+      ...prospect.computeTrail.map((summary, index) => ({
+        id: stableUuid(`activity:${prospect.id}:compute:${index}`),
+        targetType: "company",
+        targetId: company.id,
+        actor: "pipeline",
+        actionType: index === 3 ? "outreach_drafted" : "company_enhanced",
+        summary,
+        payload: { companyId: company.id },
+        createdAt: now + index,
+      })),
+      ...prospect.history.map((summary, index) => ({
+        id: stableUuid(`activity:${prospect.id}:history:${index}`),
+        targetType: "company",
+        targetId: company.id,
+        actor: "system",
+        actionType: "manual_note_added",
+        summary,
+        payload: { companyId: company.id },
+        createdAt: now + 100 + index,
+      })),
+    ];
+  });
+  return { ownerCompany, marketProfiles, companies, people, sources, matches, outreachDrafts, activities, outreachFeedback: [] };
 }
 
-function parseProfileEvent(event) {
-  const profile = JSON.parse(event.content || "{}");
-  return profile && typeof profile === "object" && !Array.isArray(profile) ? profile : null;
+function projectDeckProspects(model) {
+  const peopleByCompany = groupBy(model.people, "companyId");
+  const sourcesByCompany = groupBy(model.sources, "companyId");
+  const matchesByCompany = groupBy(model.matches, "companyId");
+  const draftsByCompany = groupBy(model.outreachDrafts, "companyId");
+  const activitiesByCompany = groupBy(model.activities, "targetId");
+  const profilesById = new Map(model.marketProfiles.map((profile) => [profile.id, profile]));
+  return model.companies
+    .map((company) => {
+      const person = peopleByCompany.get(company.id)?.[0] || {};
+      const match = matchesByCompany.get(company.id)?.[0] || {};
+      const draft = draftsByCompany.get(company.id)?.[0] || {};
+      const profile = profilesById.get(match.marketProfileId);
+      const profileData = company.profile || {};
+      return {
+        id: profileData.prototypeSlug || company.id,
+        company: company.name,
+        descriptor: profileData.displayDescriptor || [company.industry, company.location].filter(Boolean).join(" - "),
+        offering: profile?.name || profileData.marketProfileName || match.profileKey || "Unassigned offering",
+        warmth: profileData.warmth || "cold",
+        fitScore: match.score?.overallScore || Math.round(company.confidence * 100),
+        mode: profileData.mode || "signal_led",
+        whyNow: profileData.whyNow || "",
+        gap: match.reason || profileData.summary || "",
+        angle: profileData.wedge || match.score?.nextBestAction || "",
+        contact: {
+          name: person.name || "Unknown contact",
+          role: person.role || "Role unknown",
+          email: company.profile?.contactPaths?.find((path) => path.type === "email")?.value || "",
+          phone: company.profile?.contactPaths?.find((path) => path.type === "phone")?.value || "",
+          source: person.notes || "No source recorded",
+          confidence: numberToConfidence(person.buyerConfidence || 0),
+        },
+        evidence: (sourcesByCompany.get(company.id) || []).map((source) => ({
+          label: source.title,
+          source: source.summary.split(" - ")[0],
+          captured: source.extractedData?.captured || (source.lastCheckedAt ? "Checked" : "Unverified"),
+          confidence: numberToConfidence(source.confidence),
+          url: source.url || "",
+          type: source.sourceType,
+        })),
+        history: profileData.history || (activitiesByCompany.get(company.id) || []).map((activity) => activity.summary),
+        computeTrail: (activitiesByCompany.get(company.id) || []).filter((activity) => activity.actor === "pipeline").map((activity) => activity.summary),
+        stageCosts: profileData.stageCosts || [],
+        draft: draft.pitchText || "",
+        emailSubject: draft.subject || "",
+        emailSections: draft.sections || null,
+        writingRules: draft.writingRules || outreachWritingRules(),
+        status: company.dataRing === "outreach" ? "ready" : company.dataRing === "matched" ? "partial" : "degraded",
+        researchBrief: profileData.researchBrief,
+        modelRefs: {
+          companyId: company.id,
+          personId: person.id,
+          matchId: match.id,
+          marketProfileId: match.marketProfileId,
+          marketProfileVersionId: match.marketProfileVersionId,
+          outreachDraftId: draft.id,
+        },
+      };
+    })
+    .sort((a, b) => (model.matches.find((match) => match.id === a.modelRefs.matchId)?.rank || 999) - (model.matches.find((match) => match.id === b.modelRefs.matchId)?.rank || 999));
 }
 
-async function saveSettings() {
-  try {
-    const payload = await api("/api/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        autopilotUrl: $("autopilotUrlInput").value.trim(),
-        defaultPipeline: $("pipelineInput").value.trim(),
-      }),
-    });
-    state.settings = payload.settings;
-    renderSettings();
-    setStatus("Settings saved");
-  } catch (error) {
-    setStatus(error.message);
-  }
-}
-
-async function loadPipelines() {
-  try {
-    setStatus("Authorizing pipeline list");
-    const prepared = await api("/api/autopilot/pipelines", { method: "POST", body: "{}" });
-    let payload = prepared;
-    if (prepared.requiresAutopilotAuth && prepared.triggerRequest) {
-      const autopilotAuthorization = await signNip98Request(prepared.triggerRequest);
-      payload = await api("/api/autopilot/pipelines", {
-        method: "POST",
-        body: JSON.stringify({ autopilotAuthorization }),
-      });
-    }
-    state.pipelines = payload.pipelines || [];
-    savePipelinesCache();
-    renderPipelineOptions();
-    setStatus(`Loaded ${state.pipelines.length} pipelines`);
-  } catch (error) {
-    setStatus(error.message);
-  }
-}
-
-async function addAccess() {
-  try {
-    const payload = await api("/api/access-rules", {
-      method: "POST",
-      body: JSON.stringify({
-        npub: $("accessNpubInput").value.trim(),
-        role: $("accessRoleSelect").value,
-      }),
-    });
-    state.accessRules = payload.accessRules || [];
-    $("accessNpubInput").value = "";
-    renderAccessRules();
-    setStatus("Access updated");
-  } catch (error) {
-    setStatus(error.message);
-  }
-}
-
-async function removeAccessRule(rule) {
-  try {
-    const payload = await api(`/api/access-rules/${encodeURIComponent(rule.role)}/${encodeURIComponent(rule.npub)}`, {
-      method: "DELETE",
-    });
-    state.accessRules = payload.accessRules || [];
-    renderAccessRules();
-    setStatus("Access updated");
-  } catch (error) {
-    setStatus(error.message);
-  }
-}
-
-function renderChats() {
-  const list = $("chatList");
-  list.innerHTML = "";
-  for (const chat of state.chats) {
-    const button = document.createElement("button");
-    button.className = `chatItem${chat.id === state.activeChatId ? " active" : ""}`;
-    button.innerHTML = `<strong></strong><span></span>`;
-    button.querySelector("strong").textContent = chat.title;
-    button.querySelector("span").textContent = chat.preview || "No messages yet";
-    button.addEventListener("click", async () => {
-      state.activeChatId = chat.id;
-      localStorage.setItem("chat_wapp_chat", chat.id);
-      renderChats();
-      await loadActiveChat();
-    });
-    list.appendChild(button);
-  }
-}
-
-async function newChat() {
-  const payload = await api("/api/chats", { method: "POST", body: "{}" });
-  state.activeChatId = payload.chat.id;
-  localStorage.setItem("chat_wapp_chat", state.activeChatId);
-  await loadChats();
-  await loadActiveChat();
-}
-
-async function loadActiveChat() {
-  if (!state.activeChatId) return;
-  const payload = await api(`/api/chats/${encodeURIComponent(state.activeChatId)}/messages`);
-  $("chatTitle").textContent = payload.chat.title;
-  renderMessages(payload.messages || []);
-  renderChats();
-}
-
-function renderMessages(messages) {
-  const box = $("messages");
-  box.innerHTML = "";
-  for (const message of messages) {
-    const node = document.createElement("div");
-    node.className = `message ${message.role} ${message.status}`;
-    node.textContent = message.status === "pending" ? "Thinking..." : message.content;
-    box.appendChild(node);
-  }
-  box.scrollTop = box.scrollHeight;
-  const pending = messages.some((message) => message.status === "pending");
-  setStatus(pending ? "Pipeline running" : "Ready");
-}
-
-async function sendMessage(event) {
-  event.preventDefault();
-  const input = $("messageInput");
-  const content = input.value.trim();
-  if (!content || !state.activeChatId) return;
-  input.value = "";
-  $("sendButton").disabled = true;
-  try {
+function groupBy(items, key) {
+  return items.reduce((map, item) => {
     const payload = await api(`/api/chats/${encodeURIComponent(state.activeChatId)}/messages`, {
       method: "POST",
       body: JSON.stringify({ content }),
