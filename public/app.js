@@ -18,232 +18,232 @@ const state = {
   pollTimer: null,
   route: window.location.pathname,
   profiles: loadProfileCache(),
+  prototypeView: localStorage.getItem("kindling_view") || "deck",
+  activeProspectId: localStorage.getItem("kindling_active_prospect") || "northstar-studio",
+  dismissedProspects: loadPrototypeList("kindling_dismissed"),
+  snoozedProspects: loadPrototypeList("kindling_snoozed"),
+  actedProspects: loadPrototypeList("kindling_acted"),
+  prototypeActivity: loadPrototypeList("kindling_activity"),
+  deckViewMode: sessionStorage.getItem("kindling_deck_view_mode") || "focused",
+  deckOrder: loadSessionList("kindling_deck_order"),
+  sidebarCollapsed: sessionStorage.getItem("kindling_sidebar_collapsed") === "1",
+  commandValue: "",
+  commandResult: "",
+  commandConfirm: null,
+  prototypeModal: null,
 };
+
+const kindlingData = {
+  prospects: [
+    {
+      id: "northstar-studio",
+      company: "Northstar Studio",
+      descriptor: "Web design agency - Melbourne - 18 staff",
+      offering: "Website refresh opportunities",
+      warmth: "cold",
+      fitScore: 91,
+      mode: "signal_led",
+      whyNow: "Their homepage still ships a non-responsive layout on mobile and the copyright footer is four years stale.",
+      gap: "A visibly dated site is undercutting a premium positioning claim.",
+      angle: "Lead with a fast visual audit and show the mobile friction before pitching a rebuild.",
+      contact: { name: "Mia Chen", role: "Managing director", email: "mia@northstar.example", phone: "+61 3 5550 0184", source: "Website team page", confidence: "High" },
+      evidence: [
+        { label: "Viewport meta missing on homepage", source: "Homepage scan", captured: "Today", confidence: "High", url: "https://northstar.example", type: "website" },
+        { label: "Footer copyright reads 2021", source: "Website source", captured: "Today", confidence: "High", url: "https://northstar.example", type: "scan" },
+        { label: "PageSpeed mobile score 41", source: "PageSpeed sample", captured: "Today", confidence: "Medium", url: "https://pagespeed.example/northstar", type: "performance" },
+      ],
+      history: ["No prior outreach found", "No CRM ownership conflict"],
+      computeTrail: ["Stage 0: passed geography and size", "Stage 1: website artifact trigger found", "Stage 2: corroborated with PageSpeed", "Stage 3: synthesized outreach hypothesis"],
+      stageCosts: [{ stage: "Stage 0", cost: "$0", outcome: "Passed rules" }, { stage: "Stage 1", cost: "$0.18", outcome: "Trigger found" }, { stage: "Stage 2", cost: "$1.42", outcome: "Corroborated" }, { stage: "Stage 3", cost: "$0.31", outcome: "Hypothesis ready" }],
+      draft: "Hi Mia - noticed Northstar's mobile homepage is working against the premium positioning you lead with. I put together a quick visual audit showing three fixes that would make the site feel current without forcing a full rebrand.",
+      status: "ready",
+    },
+    {
+      id: "stirling-industries",
+      company: "Stirling Industries",
+      descriptor: "Manufacturing - Perth - 72 staff",
+      offering: "Custom AI systems for SMEs",
+      warmth: "warm",
+      fitScore: 87,
+      mode: "signal_led",
+      whyNow: "They posted two manual operations coordinator roles this week. Both ads point to repetitive reporting, routing, and spreadsheet reconciliation work.",
+      gap: "Hiring suggests manual workflow pressure that an internal AI system could absorb.",
+      angle: "Offer a low-risk workflow audit before the new hires inherit the same manual reporting loops.",
+      contact: { name: "Renee Walsh", role: "Operations lead", email: "renee@stirling.example", phone: "", source: "LinkedIn profile match", confidence: "Medium" },
+      evidence: [
+        { label: "Operations coordinator ad mentions daily spreadsheet reconciliation", source: "Seek job ad", captured: "Yesterday", confidence: "High", url: "https://seek.example/stirling-ops", type: "job board" },
+        { label: "Attended Other Stuff AI roundtable", source: "First-party event list", captured: "18 days ago", confidence: "High", url: "https://airspace.example/events/roundtable", type: "first-party" },
+        { label: "Recent newsletter click on automation article", source: "First-party newsletter", captured: "6 days ago", confidence: "Medium", url: "https://airspace.example/newsletter/clicks", type: "first-party" },
+      ],
+      history: ["Roundtable attendee", "No sales thread opened yet"],
+      computeTrail: ["Stage 0: passed ICP filters", "Stage 1: manual-role hire trigger found", "Stage 2: first-party warm signal fused", "Stage 3: contact path selected"],
+      stageCosts: [{ stage: "Stage 0", cost: "$0", outcome: "Passed ICP" }, { stage: "Stage 1", cost: "$0.34", outcome: "Manual-role trigger" }, { stage: "Stage 2", cost: "$0.62", outcome: "Warm signal fused" }, { stage: "Stage 3", cost: "$0.28", outcome: "Draft ready" }],
+      draft: "Hi Renee - your recent ops coordinator ads read like the team is carrying a lot of repeatable reporting by hand. Since you joined our AI roundtable, I thought a focused workflow audit might be useful before you add another manual process around the new hire.",
+      status: "partial",
+    },
+    {
+      id: "adapt-by-design",
+      company: "Adapt by Design",
+      descriptor: "SME coaching - Subiaco - 9 staff",
+      offering: "Relationship-led SME advisory",
+      warmth: "warm",
+      fitScore: 73,
+      mode: "relationship_led",
+      whyNow: "",
+      gap: "Likely founder-led growth constraint, but there is no honest timing trigger in public data.",
+      angle: "Use the shared connection path and lead with relevance, not urgency.",
+      contact: { name: "Simon Burke", role: "Founder", email: "", phone: "+61 8 5550 0127", source: "ABN and event graph match", confidence: "Medium" },
+      evidence: [
+        { label: "Founder and business age verified", source: "ABN lookup mock", captured: "3 days ago", confidence: "High", url: "https://abr.example/adapt", type: "registry" },
+        { label: "Shared event connection through Subiaco SME breakfast", source: "First-party event list", captured: "41 days ago", confidence: "Medium", url: "https://airspace.example/events/subiaco", type: "first-party" },
+      ],
+      history: ["Relationship-led ICP", "No runnable why-now trigger"],
+      computeTrail: ["Stage 0: passed geography and business-age filters", "Stage 1: no cheap timing trigger", "Stage 2: reachability checked through first-party graph", "Stage 3: thin relationship-led hypothesis generated"],
+      stageCosts: [{ stage: "Stage 0", cost: "$0", outcome: "Passed relationship ICP" }, { stage: "Stage 1", cost: "$0.12", outcome: "No timing trigger" }, { stage: "Stage 2", cost: "$0.48", outcome: "Reachability found" }, { stage: "Stage 3", cost: "$0.22", outcome: "Thin hypothesis" }],
+      draft: "Hi Simon - we both crossed paths around the Subiaco SME breakfast circuit. I work with founder-led service firms where growth creates more coordination than the team can comfortably hold, and thought there may be a useful conversation there.",
+      status: "degraded",
+    },
+    {
+      id: "harbour-health",
+      company: "Harbour Health Co.",
+      descriptor: "Allied health - Fremantle - 34 staff",
+      offering: "Custom AI systems for SMEs",
+      warmth: "cold",
+      fitScore: 79,
+      mode: "signal_led",
+      whyNow: "They are hiring a client intake administrator with heavy repeat-form and follow-up responsibilities.",
+      gap: "Client intake looks manual and fragmented.",
+      angle: "Offer a contained intake automation audit tied to the role they are hiring for.",
+      contact: { name: "Priya Nair", role: "Practice manager", email: "priya@harbourhealth.example", phone: "", source: "Practice website", confidence: "High" },
+      evidence: [
+        { label: "Client intake administrator role posted", source: "LinkedIn Jobs mock", captured: "Today", confidence: "High", url: "https://linkedin.example/jobs/harbour-intake", type: "job board" },
+        { label: "Website exposes four separate intake PDFs", source: "Website scan", captured: "Today", confidence: "Medium", url: "https://harbourhealth.example/forms", type: "website" },
+      ],
+      history: ["No prior touch", "No known warm connection"],
+      computeTrail: ["Stage 0: passed size and geography", "Stage 1: manual-role trigger found", "Stage 2: website process artifact corroborated", "Stage 3: email path selected"],
+      stageCosts: [{ stage: "Stage 0", cost: "$0", outcome: "Passed rules" }, { stage: "Stage 1", cost: "$0.29", outcome: "Hiring trigger" }, { stage: "Stage 2", cost: "$0.96", outcome: "PDF artifact corroborated" }, { stage: "Stage 3", cost: "$0.25", outcome: "Email draft ready" }],
+      draft: "Hi Priya - saw Harbour Health is hiring around client intake, and your site still points patients through several separate PDF forms. There may be a cleaner way to reduce admin load before the next person starts.",
+      status: "ready",
+    },
+    {
+      id: "cygnet-west",
+      company: "Cygnet West",
+      descriptor: "Commercial real estate - Perth - 140+ experts",
+      offering: "Wingman / Flight Deck pilots",
+      warmth: "cold",
+      fitScore: 94,
+      mode: "signal_led",
+      whyNow: "No sharp trigger yet; this is fit-led. PropTech maturity makes a workflow-layer pilot plausible.",
+      gap: "Existing data visibility needs to become coordinated action, narrative updates, approval workflows, and client-ready follow-through.",
+      angle: "Lead with action queues above existing systems.",
+      contact: { name: "Denis Leane", role: "CFO", email: "", phone: "", source: "Public PropTech article", confidence: "Medium" },
+      evidence: [
+        { label: "WA-owned commercial real estate agency with 140+ experts", source: "Cygnet West official site", captured: "Research brief", confidence: "High", url: "https://cygnetwest.com/about-cygnet-west/", type: "company" },
+        { label: "Integrated PropTech platform with live performance data and automated reporting", source: "Cygnet West PropTech page", captured: "Research brief", confidence: "High", url: "https://cygnetwest.com/service/proptech/", type: "proptech" },
+        { label: "MRI webinar centers data visibility, client reporting, and operational efficiency", source: "MRI Software webinar", captured: "Research brief", confidence: "Medium", url: "https://www.mrisoftware.com/au/resources/discover-how-cygnet-west-revolutionised-data-visibility-client-reporting-operational-efficiency/", type: "third-party" },
+        { label: "WA infrastructure and property-market context may increase operating complexity", source: "WA Government and Cushman & Wakefield", captured: "Research brief", confidence: "Medium", url: "https://www.cushmanwakefield.com/en/australia/insights/perth-marketbeat", type: "market" },
+      ],
+      history: ["No prior outreach in prototype memory", "Public research suggests technology leadership, not technology immaturity"],
+      computeTrail: ["Stage 0: passed enterprise-fit and geography rules", "Stage 1: PropTech maturity signal found", "Stage 2: service-line operating surfaces mapped", "Stage 3: multi-pilot outreach brief synthesized"],
+      stageCosts: [{ stage: "Stage 0", cost: "$0", outcome: "Passed fit rules" }, { stage: "Stage 1", cost: "$0.44", outcome: "PropTech signal found" }, { stage: "Stage 2", cost: "$3.86", outcome: "Research brief compiled" }, { stage: "Stage 3", cost: "$0.74", outcome: "Pilot strategy synthesized" }],
+      draft: "Hi Denis - Cygnet West already looks ahead of many agencies on data visibility and client reporting. Wingman and Flight Deck are strongest when that data needs to become coordinated action: exception queues, narrative updates, approval workflows, and accountable follow-through across teams.",
+      status: "partial",
+      researchBrief: {
+        title: "Wingman / Flight Deck Opportunity Brief",
+        executiveSummary: [
+          "Cygnet West is a strong-fit prospect because it combines a large, workflow-heavy commercial real estate operation with visible PropTech maturity.",
+          "The strongest pitch should not frame Wingman as basic digital transformation. Cygnet West already emphasizes live performance data, automated reporting, client access to internal systems, cloud technology, and PropTech leadership.",
+          "The better angle is that Wingman and Flight Deck sit above existing systems as an AI-enabled workflow and decision layer that turns data into action queues, narrative updates, stakeholder follow-through, client-ready reports, and accountable operating workflows.",
+        ],
+        serviceLines: ["Commercial property management", "Retail property management", "Agency and leasing", "Tenant representation", "Project management", "Research and advisory", "Facilities management", "PropTech and business systems"],
+        strategicSignals: [
+          "Large managed portfolio across diverse asset classes creates coordination and reporting pressure.",
+          "Public materials emphasize live performance data, automated reporting, system integration, and client transparency.",
+          "Recent leadership and market activity point to industrial growth, retail management, research capability, stakeholder relationships, and significant asset management.",
+        ],
+        opportunityAreas: [
+          {
+            title: "Property Management Command Layer",
+            evidence: "Cygnet West manages more than 2,500 WA properties and public materials emphasize transparent performance reporting.",
+            hypothesis: "Wingman and Flight Deck can triage tenant, owner, contractor, and client requests by asset, urgency, and commercial impact.",
+            value: ["Fewer missed follow-ups", "Faster client and tenant response", "Better escalation visibility", "More proactive asset interventions"],
+            targets: ["Commercial Property Management", "Retail Property Management", "Facilities Management", "Business Management Systems"],
+          },
+          {
+            title: "Client Reporting and Insight Automation",
+            evidence: "Cygnet West already prioritizes real-time client data access, automated reporting, visualization, and transparency.",
+            hypothesis: "Wingman can generate narrative summaries, variance explanations, recommendations, and briefing packs from existing dashboards.",
+            value: ["Less analyst and manager assembly time", "Faster report turnaround", "More consistent client-facing narrative quality"],
+            targets: ["PropTech", "Business Management Systems", "Corporate Finance", "Research and Advisory"],
+          },
+          {
+            title: "Research and Market-Intelligence Production",
+            evidence: "Research and Advisory publishes updates across WA economy, Perth office, industrial, residential, retail, and expert opinion categories.",
+            hypothesis: "Wingman can assist source monitoring, evidence extraction, first-draft market briefs, comparable summaries, and expert review workflows.",
+            value: ["Faster market briefs", "More scalable thought leadership", "Better source traceability and expert sign-off"],
+            targets: ["Research and Advisory", "Valuation and Advisory", "Marketing", "Agency Services"],
+          },
+          {
+            title: "Leasing and Tenant-Representation Pipeline Support",
+            evidence: "Cygnet West supports leasing, tenant representation, financial analysis, negotiations, renewals, and property strategy.",
+            hypothesis: "Flight Deck can track multi-party pursuits, client inputs, document status, negotiation milestones, and next steps.",
+            value: ["Improved pursuit discipline", "Reduced broker/admin load", "More consistent tenant and landlord experience"],
+            targets: ["Agency Services", "Commercial Leasing", "Tenant Representation", "Industrial Agency"],
+          },
+        ],
+        outreachStrategy: {
+          positioning: "Lead with Cygnet West's existing technology leadership. The gap is turning data into coordinated action, not introducing generic transformation.",
+          entryPoints: ["CFO / PropTech / Business Management Systems", "Commercial and Retail Property Management", "Research and Advisory", "Strategic Client and Stakeholder Relationships"],
+          pilots: ["Retail or commercial property management exception reporting", "Quarterly market update workflow", "Leasing pursuit coordination"],
+        },
+        discoveryQuestions: [
+          "Which internal systems beyond MRI are used for property management, leasing CRM, document management, support/ticketing, and marketing automation?",
+          "Which service line has the highest immediate coordination burden?",
+          "Which client reporting outputs are most time-consuming today?",
+          "What data-access constraints exist for an AI/workflow pilot?",
+          "Who owns technology procurement?",
+        ],
+        limitations: [
+          "Employee count varies by source; use the official 140+ figure for outreach.",
+          "Some third-party technographic and revenue claims were not corroborated and should not be used in outreach without verification.",
+          "Public research does not confirm the full internal systems stack, procurement ownership, exact workflow pain severity, or current AI policy.",
+          "Named possible champions are based on public source references and should be verified before direct outreach.",
+        ],
+        sources: [
+          "https://cygnetwest.com/",
+          "https://cygnetwest.com/about-cygnet-west/",
+          "https://cygnetwest.com/service/proptech/",
+          "https://cygnetwest.com/services/management-services/",
+          "https://cygnetwest.com/service/research-advisory/",
+          "https://www.mrisoftware.com/au/resources/discover-how-cygnet-west-revolutionised-data-visibility-client-reporting-operational-efficiency/",
+          "https://www.businessnews.com.au/Company/Cygnet-West",
+          "https://www.cushmanwakefield.com/en/australia/insights/perth-marketbeat",
+        ],
+      },
+    },
+  ],
+  replies: [
+    { id: "reply-1", company: "Stirling Industries", contact: "Renee Walsh", state: "objection", age: "3d", urgency: "danger", gist: "Interested, but worried the team will see automation as headcount reduction.", nextMove: "Handle objection" },
+    { id: "reply-2", company: "Northstar Studio", contact: "Mia Chen", state: "scheduling", age: "22h", urgency: "warning", gist: "Asked for examples of quick mobile fixes before booking.", nextMove: "Send audit times" },
+    { id: "reply-3", company: "Adapt by Design", contact: "Simon Burke", state: "gone quiet", age: "8d", urgency: "danger", gist: "Opened the note twice, no response after first nudge.", nextMove: "Send final light nudge" },
+  ],
+};
+
+const kindlingModel = buildPrototypeDataModel(kindlingData.prospects);
+kindlingData.prospects = projectDeckProspects(kindlingModel);
 
 const $ = (id) => document.getElementById(id);
 
-function api(path, options = {}) {
-  return fetch(path, {
-    ...options,
-    headers: {
-      "content-type": "application/json",
-      ...(state.token ? { authorization: `Bearer ${state.token}` } : {}),
-      ...(options.headers || {}),
-    },
-  }).then(async (res) => {
-    const payload = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(payload.error || res.statusText);
-    return payload;
-  });
-}
-
-function setStatus(text) {
-  $("status").textContent = text;
-}
-
-function loadProfileCache() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY) || "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function loadPipelinesCache() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(PIPELINES_CACHE_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function savePipelinesCache() {
-  localStorage.setItem(PIPELINES_CACHE_KEY, JSON.stringify(state.pipelines));
-}
-
-function saveProfileCache() {
-  localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(state.profiles));
-}
-
-function cachedProfile(pubkey) {
-  const entry = state.profiles[pubkey];
-  if (!entry || Date.now() - Number(entry.cachedAt || 0) > PROFILE_CACHE_TTL_MS) return null;
-  return entry;
-}
-
-function displayNameForRule(rule, profile) {
-  return profile?.displayName || profile?.name || `${rule.npub.slice(0, 12)}...${rule.npub.slice(-6)}`;
-}
-
-function profileInitial(rule, profile) {
-  return displayNameForRule(rule, profile).slice(0, 1).toUpperCase();
-}
-
-function appRoute() {
-  return ["/act", "/chat", "/settings"].includes(window.location.pathname) ? window.location.pathname : "/";
-}
-
-function navigate(path) {
-  if (window.location.pathname !== path) history.pushState({}, "", path);
-  state.route = path;
-  void renderRoute();
-}
-
-function showOnly(id) {
-  for (const sectionId of ["login", "home", "actPage", "settingsPage", "shell"]) {
-    $(sectionId).classList.toggle("hidden", sectionId !== id);
-  }
-}
-
-function stopPolling() {
-  if (state.pollTimer) clearInterval(state.pollTimer);
-  state.pollTimer = null;
-}
-
-async function renderRoute() {
-  state.route = appRoute();
-  if (!state.token || !state.me) {
-    stopPolling();
-    showOnly("login");
-    return;
-  }
-
-  if (state.route === "/chat") {
-    showOnly("shell");
-    await loadChatScreen();
-    startPolling();
-    return;
-  }
-
-  stopPolling();
-  if (state.route === "/settings") {
-    showOnly("settingsPage");
-    await loadSettings();
-    return;
-  }
-
-  if (state.route === "/act") {
-    showOnly("actPage");
-    return;
-  }
-
-  showOnly("home");
-}
-
-async function login() {
-  $("loginError").textContent = "";
-  if (!window.nostr) {
-    $("loginError").textContent = "No Nostr browser extension was found.";
-    return;
-  }
-  try {
-    const pubkey = await window.nostr.getPublicKey();
-    const challenge = await api("/api/auth/challenge", {
-      method: "POST",
-      body: JSON.stringify({ pubkey }),
-    });
-    const event = await window.nostr.signEvent({
-      kind: 22242,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [["challenge", challenge.nonce], ["client", "chat-wapp"]],
-      content: challenge.content,
-    });
-    const result = await api("/api/auth/verify", {
-      method: "POST",
-      body: JSON.stringify({ event }),
-    });
-    state.token = result.token;
-    state.me = result;
-    localStorage.setItem("chat_wapp_token", result.token);
-    if (window.location.pathname !== "/") history.pushState({}, "", "/");
-    await bootApp();
-  } catch (error) {
-    $("loginError").textContent = error.message;
-  }
-}
-
-async function bootApp() {
-  try {
-    state.me = await api("/api/me");
-    $("npub").textContent = state.me.npub;
-    await renderRoute();
-  } catch {
-    logout();
-  }
-}
-
-function logout() {
-  state.token = "";
-  state.me = null;
-  state.activeChatId = "";
-  localStorage.removeItem("chat_wapp_token");
-  localStorage.removeItem("chat_wapp_chat");
-  stopPolling();
-  showOnly("login");
-}
-
-async function loadChatScreen() {
-  await loadChats();
-  if (!state.activeChatId || !state.chats.find((chat) => chat.id === state.activeChatId)) {
-    if (state.chats[0]) state.activeChatId = state.chats[0].id;
-    else await newChat();
-  }
-  await loadActiveChat();
-}
-
-async function loadChats() {
-  const payload = await api("/api/chats");
-  state.chats = payload.chats || [];
-  renderChats();
-}
-
-async function loadSettings() {
-  const payload = await api("/api/settings");
-  state.settings = payload.settings;
-  state.accessRules = payload.accessRules || [];
-  renderSettings();
-  renderPipelineOptions();
-  renderAccessRules();
-}
-
-function renderSettings() {
-  $("autopilotUrlInput").value = state.settings?.autopilotUrl || "";
-  $("pipelineInput").value = state.settings?.defaultPipeline || "";
-  const canEdit = Boolean(state.me?.access?.edit);
-  for (const id of ["autopilotUrlInput", "pipelineInput", "pipelineSelect", "saveSettingsButton", "accessNpubInput", "accessRoleSelect", "addAccessButton"]) {
-    $(id).disabled = !canEdit;
-  }
-}
-
-function renderPipelineOptions() {
-  const select = $("pipelineSelect");
-  select.innerHTML = "";
-  const empty = document.createElement("option");
-  empty.value = "";
-  empty.textContent = state.pipelines.length ? "Select a pipeline" : "No pipelines loaded";
-  select.appendChild(empty);
-  for (const pipeline of state.pipelines) {
-    const option = document.createElement("option");
-    option.value = pipeline.name || pipeline.slug || pipeline.id;
-    option.textContent = `${pipeline.name || pipeline.slug || pipeline.id}${pipeline.version ? ` v${pipeline.version}` : ""}`;
-    select.appendChild(option);
-  }
-}
-
-function renderAccessRules() {
-  const list = $("accessList");
-  list.innerHTML = "";
-  const canEdit = Boolean(state.me?.access?.edit);
-  for (const rule of state.accessRules) {
-    const item = document.createElement("div");
-    item.className = "accessItem";
-    item.dataset.pubkey = rule.pubkey;
-    const profile = cachedProfile(rule.pubkey);
-    const identity = document.createElement("div");
-    identity.className = "accessIdentity";
-    const avatar = document.createElement("div");
+function buildPrototypeDataModel(prospects) {
+  const now = Date.UTC(2026, 5, 9);
+  const ownerCompany = {
+    id: stableUuid("owner-company:adapt-by-design"),
+    name: "Adapt by Design",
+    website: "https://adaptbydesign.example",
+    location: "Perth, WA",
+    summary: "Adapt helps businesses improve workflows with practical AI, automation, training, and implementation support.",
+    createdAt: now,
+    updatedAt: now,
     avatar.className = "accessAvatar";
     if (profile?.picture) {
       const img = document.createElement("img");
