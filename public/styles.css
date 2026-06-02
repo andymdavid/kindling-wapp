@@ -1210,3 +1210,205 @@ button:disabled {
   line-height: 1;
 }
 
+.activitySummary {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--neutral-fill);
+}
+
+.activitySummary h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.summaryCounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.summaryCounts span {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.summaryCounts strong {
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.activitySummary p {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 110px minmax(90px, 0.8fr) minmax(0, 1fr);
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.activitySummary em,
+.activitySummary span {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.activitySummary em,
+.activitySummary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listSurface,
+.dossierView {
+  min-height: 100vh;
+  padding: 28px;
+  display: grid;
+  align-content: start;
+  gap: 22px;
+}
+
+.surfaceHeader h1 {
+  font-size: 36px;
+}
+
+.surfaceHeader p {
+  margin: 0 0 3px;
+  color: var(--kindling-coral);
+  font-weight: 800;
+}
+
+.hypothesisPanel,
+.dossierGrid,
+.offeringGrid,
+.funnelGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.dossierHeaderActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hypothesisPanel {
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr);
+}
+
+.hypothesisMain,
+.verificationRail,
+.detailPanel,
+.replyCard,
+.funnelStage {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 18px;
+}
+
+.hypothesisMain > span,
+.panelTitle span,
+.funnelStage span {
+  color: var(--kindling-coral);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hypothesisMain h2 {
+  margin: 6px 0 0;
+  font-size: 24px;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.hypothesisMain p {
+  margin: 8px 0 0;
+}
+
+.whyNowInline {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--coral-tint);
+  border: 1px solid rgba(184, 70, 31, 0.18);
+}
+
+.whyNowInline.relationship {
+  background: var(--relationship-tint);
+  border-color: rgba(21, 96, 74, 0.18);
+}
+
+.verificationRail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.verificationRail p {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.verificationRail strong {
+  display: block;
+  color: var(--ink);
+}
+
+.dossierGrid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  align-items: start;
+}
+
+.evidencePanel,
+.computePanel {
+  grid-row: span 2;
+}
+
+.panelTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.evidenceRow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  margin-top: 10px;
+  text-align: left;
+  box-shadow: none;
+  border-radius: 8px;
+}
+
+.evidenceRow strong,
+.evidenceRow span:not(.sourceType),
+.evidenceRow em {
+  grid-column: 2;
+}
+
+.sourceType {
+  grid-row: span 3;
+  align-self: start;
+  width: 82px;
+  display: grid;
