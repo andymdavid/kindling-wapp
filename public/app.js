@@ -491,97 +491,249 @@ function projectDeckProspects(model) {
 
 function groupBy(items, key) {
   return items.reduce((map, item) => {
-    const payload = await api(`/api/chats/${encodeURIComponent(state.activeChatId)}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ content }),
-    });
-    renderMessages(payload.messages || []);
-    if (payload.requiresAutopilotAuth && payload.triggerRequest) {
-      setStatus("Authorizing pipeline");
-      const autopilotAuthorization = await signNip98Request(payload.triggerRequest);
-      const started = await api(`/api/pipeline-runs/${encodeURIComponent(payload.runId)}/start`, {
-        method: "POST",
-        body: JSON.stringify({ autopilotAuthorization }),
-      });
-      renderMessages(started.messages || []);
-    }
-    await loadChats();
-  } catch (error) {
-    setStatus(error.message);
-  } finally {
-    $("sendButton").disabled = false;
-    input.focus();
-  }
+    const value = item[key];
+    map.set(value, [...(map.get(value) || []), item]);
+    return map;
+  }, new Map());
 }
 
-async function signNip98Request(triggerRequest) {
-  if (!window.nostr) throw new Error("No Nostr browser extension was found.");
-  const tags = [
-    ["u", triggerRequest.url],
-    ["method", triggerRequest.method || "POST"],
+function stableUuid(seed) {
+  let hash = 2166136261;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, "0");
+  return `${hex.slice(0, 8)}-${hex.slice(0, 4)}-4${hex.slice(1, 4)}-a${hex.slice(0, 3)}-${hex}${hex.slice(0, 4)}`;
+}
+
+function slugify(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function parseDescriptor(descriptor) {
+  const parts = descriptor.split(" - ");
+  const employeeMatch = descriptor.match(/(\d+\+?)\s+(staff|experts)/i);
+  const count = employeeMatch ? Number.parseInt(employeeMatch[1], 10) : 0;
+  return {
+    industry: parts[0] || "",
+    location: parts[1] || "",
+    employeeCountBucket: employeeCountBucket(count),
+  };
+}
+
+function employeeCountBucket(count) {
+  if (!count) return "";
+  if (count < 5) return "<5";
+  if (count <= 20) return "5-20";
+  if (count <= 50) return "20-50";
+  if (count <= 100) return "50-100";
+  if (count <= 500) return "100-500";
+  return "500+";
+}
+
+function inferTargetSegment(offering) {
+  if (offering.includes("Website")) return "Companies with visible website refresh opportunities";
+  if (offering.includes("AI")) return "SMEs with manual workflow pressure";
+  if (offering.includes("Relationship")) return "Relationship-led SME advisory prospects";
+  return "High-fit prospects for the selected offering";
+}
+
+function inferRelationship(role = "") {
+  const normalized = role.toLowerCase();
+  if (normalized.includes("founder") || normalized.includes("director") || normalized.includes("cfo")) return "decision_maker";
+  return "operator";
+}
+
+function normalizeSourceType(type) {
+  const map = {
+    website: "company_website",
+    scan: "company_website",
+    performance: "technology_profile",
+    "job board": "job_ad",
+    registry: "business_register",
+    "first-party": "event",
+    company: "company_website",
+    proptech: "technology_profile",
+    "third-party": "news",
+    market: "news",
+  };
+  return map[type] || "manual_note";
+}
+
+function confidenceToNumber(confidence) {
+  if (typeof confidence === "number") return confidence;
+  const map = { High: 0.86, Medium: 0.62, Low: 0.34 };
+  return map[confidence] || 0.5;
+}
+
+function numberToConfidence(confidence) {
+  if (confidence >= 0.75) return "High";
+  if (confidence >= 0.5) return "Medium";
+  return "Low";
+}
+
+function outreachWritingRules() {
+  return [
+    "No em dashes.",
+    "No contrast framing.",
+    "No fake familiarity.",
+    "No unsupported claims.",
+    "One trigger, one offer, one CTA.",
+    "Use an interest CTA, not a calendar CTA.",
+    "Keep the first draft under 120 words.",
   ];
-  if (triggerRequest.body !== undefined) {
-    const bodyJson = JSON.stringify(triggerRequest.body);
-    tags.push(["payload", await sha256Hex(bodyJson)]);
-  }
-  const event = await window.nostr.signEvent({
-    kind: 27235,
-    created_at: Math.floor(Date.now() / 1000),
-    tags,
-    content: "",
+}
+
+function buildOutreachEmail(prospect) {
+  const firstName = prospect.contact.name.split(" ")[0];
+  const subject = cleanOutreachText(emailSubject(prospect));
+  const sections = {
+    opener: cleanOutreachText(`Hi ${firstName}, ${openerLine(prospect)}`),
+    observation: cleanOutreachText(observationLine(prospect)),
+    wedge: cleanOutreachText(wedgeLine(prospect)),
+    credibility: cleanOutreachText(credibilityLine(prospect)),
+    cta: cleanOutreachText(ctaLine(prospect)),
+  };
+  const body = [sections.opener, [sections.observation, sections.wedge].filter(Boolean).join(" "), sections.credibility, sections.cta]
+    .filter(Boolean)
+    .join("\n\n");
+  return { subject, sections, body };
+}
+
+function openerLine(prospect) {
+  if (prospect.id === "stirling-industries") return "saw Stirling posted two operations coordinator roles this week.";
+  if (prospect.id === "northstar-studio") return "noticed Northstar's mobile homepage is still difficult to use on smaller screens.";
+  if (prospect.id === "harbour-health") return "saw Harbour Health is hiring for client intake admin.";
+  if (prospect.id === "adapt-by-design") return "we crossed paths around the Subiaco SME breakfast circuit.";
+  if (prospect.id === "cygnet-west") return "Cygnet West already looks ahead of many agencies on data visibility and client reporting.";
+  return prospect.whyNow || prospect.gap || `had a quick thought about ${prospect.company}.`;
+}
+
+function observationLine(prospect) {
+  if (prospect.id === "stirling-industries") return "Both ads mention reporting, routing, and spreadsheet reconciliation. That usually points to repeatable coordination work sitting with the team.";
+  if (prospect.id === "northstar-studio") return "For a premium studio, that kind of friction can quietly work against the first impression.";
+  if (prospect.id === "harbour-health") return "The role and the separate intake forms suggest there may be repeat admin that patients and staff both feel.";
+  if (prospect.id === "adapt-by-design") return "Founder-led advisory firms often hit a point where growth creates more coordination than the team can comfortably hold.";
+  if (prospect.id === "cygnet-west") return "The gap may be turning strong reporting infrastructure into action queues, narrative updates, and accountable follow-through.";
+  return prospect.gap;
+}
+
+function wedgeLine(prospect) {
+  if (prospect.id === "stirling-industries") return "We can map which parts could be simplified before new hires inherit the same manual loops.";
+  if (prospect.id === "northstar-studio") return "I can send a short visual audit with the three fixes most likely to make the site feel current.";
+  if (prospect.id === "harbour-health") return "We can look at a contained intake workflow audit tied to the role you are hiring for.";
+  if (prospect.id === "adapt-by-design") return "It may be worth comparing notes on where simple workflow support would help without changing how you work with clients.";
+  if (prospect.id === "cygnet-west") return "Wingman and Flight Deck could sit above existing systems as a practical workflow layer.";
+  return prospect.angle;
+}
+
+function credibilityLine(prospect) {
+  const firstPartySignal = prospect.evidence?.find((item) => item.type === "first-party" || item.source?.includes("First-party"));
+  if (firstPartySignal) return `I am basing this on ${firstPartySignal.source.toLowerCase()}, not a generic list scrape.`;
+  return "";
+}
+
+function ctaLine(prospect) {
+  if (prospect.id === "northstar-studio") return "Worth sending the audit over?";
+  if (prospect.id === "adapt-by-design") return "Worth a quick conversation?";
+  return "Worth a quick look?";
+}
+
+function cleanOutreachText(value) {
+  return String(value || "")
+    .replaceAll("—", ", ")
+    .replaceAll("–", "-")
+    .replace(/\bnot\s+([^,.!?]+),?\s+but\s+/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function api(path, options = {}) {
+  return fetch(path, {
+    ...options,
+    headers: {
+      "content-type": "application/json",
+      ...(state.token ? { authorization: `Bearer ${state.token}` } : {}),
+      ...(options.headers || {}),
+    },
+  }).then(async (res) => {
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(payload.error || res.statusText);
+    return payload;
   });
-  return `Nostr ${base64Utf8(JSON.stringify(event))}`;
 }
 
-async function sha256Hex(value) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+function setStatus(text) {
+  $("status").textContent = text;
 }
 
-function base64Utf8(value) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-function startPolling() {
-  if (state.pollTimer) clearInterval(state.pollTimer);
-  state.pollTimer = setInterval(async () => {
-    if (state.route === "/chat" && state.activeChatId && state.token) {
-      await loadActiveChat().catch(() => undefined);
-      await loadChats().catch(() => undefined);
-    }
-  }, 1500);
-}
-
-$("loginButton").addEventListener("click", login);
-$("logoutButton").addEventListener("click", logout);
-$("newChatButton").addEventListener("click", newChat);
-$("homeActButton").addEventListener("click", () => navigate("/act"));
-$("homeChatButton").addEventListener("click", () => navigate("/chat"));
-$("homeSettingsButton").addEventListener("click", () => navigate("/settings"));
-$("settingsHomeButton").addEventListener("click", () => navigate("/"));
-$("saveSettingsButton").addEventListener("click", saveSettings);
-$("loadPipelinesButton").addEventListener("click", loadPipelines);
-$("addAccessButton").addEventListener("click", addAccess);
-$("pipelineSelect").addEventListener("change", () => {
-  if ($("pipelineSelect").value) $("pipelineInput").value = $("pipelineSelect").value;
-});
-$("composer").addEventListener("submit", sendMessage);
-$("messageInput").addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    $("composer").requestSubmit();
+function loadProfileCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
   }
-});
+}
 
-window.addEventListener("popstate", () => {
+function loadPipelinesCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PIPELINES_CACHE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadPrototypeList(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadSessionList(key) {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePipelinesCache() {
+  localStorage.setItem(PIPELINES_CACHE_KEY, JSON.stringify(state.pipelines));
+}
+
+function saveProfileCache() {
+  localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(state.profiles));
+}
+
+function cachedProfile(pubkey) {
+  const entry = state.profiles[pubkey];
+  if (!entry || Date.now() - Number(entry.cachedAt || 0) > PROFILE_CACHE_TTL_MS) return null;
+  return entry;
+}
+
+function displayNameForRule(rule, profile) {
+  return profile?.displayName || profile?.name || `${rule.npub.slice(0, 12)}...${rule.npub.slice(-6)}`;
+}
+
+function profileInitial(rule, profile) {
+  return displayNameForRule(rule, profile).slice(0, 1).toUpperCase();
+}
+
+function appRoute() {
+  if (["/act", "/chat", "/settings"].includes(window.location.pathname)) return window.location.pathname;
+  return "/";
+}
+
+function navigate(path) {
+  if (window.location.pathname !== path) history.pushState({}, "", path);
+  state.route = path;
   void renderRoute();
-});
+}
 
-if (state.token) bootApp();
-else showOnly("login");

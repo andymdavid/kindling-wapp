@@ -200,208 +200,208 @@ button:disabled {
   background: var(--panel);
   position: relative;
   z-index: 3;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  box-shadow: 14px 0 32px rgba(28,32,40,0.07), 3px 0 10px rgba(28,32,40,0.04);
 }
 
-.shell {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 310px minmax(0, 1fr);
-}
-
-.sidebar {
-  border-right: 1px solid var(--line);
-  background: rgba(238, 242, 237, 0.86);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 100vh;
-}
-
-.sidebarTop {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.eyebrow {
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-.npub {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-}
-
-.newChat {
-  width: 100%;
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
-
-input,
-select {
-  width: 100%;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  padding: 11px 12px;
-  background: var(--panel);
-  color: var(--ink);
-  outline: none;
-  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(21, 117, 101, 0.12);
-}
-
-.settingsPanel {
-  border: 1px solid rgba(203, 198, 186, 0.8);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
-  padding: 20px;
-  box-shadow: var(--shadow-soft);
-}
-
-.settingsPanel summary {
-  cursor: pointer;
-  font-weight: 650;
-}
-
-.settingsPanel h2 {
-  margin: 0;
-  font-size: 20px;
-  letter-spacing: 0;
-}
-
-.settingsPanel label {
-  display: grid;
-  gap: 6px;
-  margin-top: 14px;
-}
-
-.settingsPanel label span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.settingsActions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.settingsActions button:last-child,
-#addAccessButton {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
-
-.accessList {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.accessItem {
+.brandLockup {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
   align-items: center;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel-soft);
+  gap: 8px;
+  padding: 0 6px 12px;
 }
 
-.accessIdentity {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+.brandMark {
+  min-width: 0;
+  display: flex;
+  align-items: center;
   gap: 9px;
-  align-items: center;
-  min-width: 0;
 }
 
-.accessAvatar {
-  width: 38px;
-  height: 38px;
+.brandMark img {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(28,32,40,0.1);
+}
+
+.brandLockup strong {
+  display: inline-block;
+  padding-bottom: 3px;
+  text-overflow: ellipsis;
+  font-size: 25px;
+  line-height: 1.18;
+  letter-spacing: 0;
+  background: linear-gradient(90deg, #ff5a45 0%, #c24a45 42%, #4b123f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brandLockup span,
+.surfaceHeader span,
+.prospectHeader p,
+.prospectHeader span,
+.whyNow span,
+.relationshipLead span,
+.contactRow span,
+.replyCard p,
+.funnelStage p {
+  color: var(--muted);
+}
+
+.sidebarToggle {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  overflow: hidden;
-  border-radius: 50%;
-  background: #d9e7e2;
-  color: var(--accent);
-  font-weight: 700;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.accessAvatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.sidebarToggle:hover {
+  background: var(--panel-soft);
+  box-shadow: none;
+  transform: none;
 }
 
-.accessLabel {
+.navIcon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.prototypeNav {
   display: grid;
-  min-width: 0;
+  gap: 2px;
 }
 
-.accessLabel strong,
-.accessLabel span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.prototypeNav button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: left;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 12px;
+  color: var(--neutral-fill-text);
 }
 
-.accessLabel strong {
-  font-size: 13px;
+.prototypeNav button:hover {
+  background: var(--panel-soft);
+  box-shadow: none;
+  transform: none;
 }
 
-.accessLabel span {
-  color: var(--muted);
+.prototypeNav button.active {
+  background: var(--neutral-fill);
+  color: var(--ink);
+}
+
+.prototypeNav button em {
+  margin-left: auto;
+  min-width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--kindling-coral);
+  color: white;
+  font-style: normal;
   font-size: 12px;
 }
 
-.chatList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow: auto;
-}
-
-.chatItem {
-  text-align: left;
-  display: grid;
-  gap: 3px;
-  padding: 10px;
+.prototypeNav button em.inventory {
   background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
 }
 
-.chatItem.active {
-  background: var(--panel);
-  border-color: var(--accent);
+.prototypeNav button.active em.inventory {
+  border-color: rgba(255, 255, 255, 0.34);
+  color: white;
 }
 
-.chatItem strong,
-.chatItem span {
+.kindlingShell.sidebarClosed .kindlingNav {
+  align-items: stretch;
+}
+
+.kindlingShell.sidebarClosed .brandLockup {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 0 0 12px;
+}
+
+.kindlingShell.sidebarClosed .brandMark {
+  justify-content: center;
+}
+
+.kindlingShell.sidebarClosed .brandMark strong {
+  display: none;
+}
+
+.kindlingShell.sidebarClosed .sidebarToggle {
+  width: 44px;
+}
+
+.kindlingShell.sidebarClosed .prototypeNav button {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+  width: 44px;
+  justify-self: center;
+}
+
+.kindlingShell.sidebarClosed .prototypeNav button span,
+.kindlingShell.sidebarClosed .prototypeNav button small {
+  display: none;
+}
+
+.kindlingShell.sidebarClosed .prototypeNav button em {
+  position: absolute;
+  margin-left: 0;
+  transform: translate(13px, -12px);
+  min-width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
+
+.kindlingMain {
+  min-width: 0;
+  min-height: 100vh;
+  display: grid;
+  background: var(--main-bg);
+}
+
+.deckViewport {
+  height: 100vh;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  width: 100%;
+  justify-self: stretch;
+  display: grid;
+  grid-template-rows: 38px auto 24px minmax(0, 1fr) 54px;
+  gap: 7px;
+  padding: 14px 16px 16px 24px;
 }
+
+.homeTopbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 
 .chatItem span {
   color: var(--muted);
