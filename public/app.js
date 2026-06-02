@@ -737,3 +737,250 @@ function navigate(path) {
   void renderRoute();
 }
 
+function showOnly(id) {
+  for (const sectionId of ["login", "home", "actPage", "settingsPage", "shell"]) {
+    $(sectionId).classList.toggle("hidden", sectionId !== id);
+  }
+}
+
+function stopPolling() {
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = null;
+}
+
+async function renderRoute() {
+  state.route = appRoute();
+  if (state.route === "/" || state.route === "/act") {
+    stopPolling();
+    showOnly("actPage");
+    renderActPrototype();
+    return;
+  }
+
+  if (!state.token || !state.me) {
+    stopPolling();
+    showOnly("login");
+    return;
+  }
+
+  if (state.route === "/chat") {
+    showOnly("shell");
+    await loadChatScreen();
+    startPolling();
+    return;
+  }
+
+  stopPolling();
+  if (state.route === "/settings") {
+    showOnly("settingsPage");
+    await loadSettings();
+    return;
+  }
+
+  showOnly("home");
+}
+
+async function login() {
+  $("loginError").textContent = "";
+  if (!window.nostr) {
+    $("loginError").textContent = "No Nostr browser extension was found.";
+    return;
+  }
+  try {
+    const pubkey = await window.nostr.getPublicKey();
+    const challenge = await api("/api/auth/challenge", {
+      method: "POST",
+      body: JSON.stringify({ pubkey }),
+    });
+    const event = await window.nostr.signEvent({
+      kind: 22242,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [["challenge", challenge.nonce], ["client", "chat-wapp"]],
+      content: challenge.content,
+    });
+    const result = await api("/api/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ event }),
+    });
+    state.token = result.token;
+    state.me = result;
+    localStorage.setItem("chat_wapp_token", result.token);
+    if (window.location.pathname !== "/") history.pushState({}, "", "/");
+    await bootApp();
+  } catch (error) {
+    $("loginError").textContent = error.message;
+  }
+}
+
+async function bootApp() {
+  try {
+    state.me = await api("/api/me");
+    $("npub").textContent = state.me.npub;
+    await renderRoute();
+  } catch {
+    logout();
+  }
+}
+
+function logout() {
+  state.token = "";
+  state.me = null;
+  state.activeChatId = "";
+  localStorage.removeItem("chat_wapp_token");
+  localStorage.removeItem("chat_wapp_chat");
+  stopPolling();
+  showOnly("login");
+}
+
+async function loadChatScreen() {
+  await loadChats();
+  if (!state.activeChatId || !state.chats.find((chat) => chat.id === state.activeChatId)) {
+    if (state.chats[0]) state.activeChatId = state.chats[0].id;
+    else await newChat();
+  }
+  await loadActiveChat();
+}
+
+async function loadChats() {
+  const payload = await api("/api/chats");
+  state.chats = payload.chats || [];
+  renderChats();
+}
+
+async function loadSettings() {
+  const payload = await api("/api/settings");
+  state.settings = payload.settings;
+  state.accessRules = payload.accessRules || [];
+  renderSettings();
+  renderPipelineOptions();
+  renderAccessRules();
+}
+
+function renderSettings() {
+  $("autopilotUrlInput").value = state.settings?.autopilotUrl || "";
+  $("pipelineInput").value = state.settings?.defaultPipeline || "";
+  const canEdit = Boolean(state.me?.access?.edit);
+  for (const id of ["autopilotUrlInput", "pipelineInput", "pipelineSelect", "saveSettingsButton", "accessNpubInput", "accessRoleSelect", "addAccessButton"]) {
+    $(id).disabled = !canEdit;
+  }
+}
+
+function renderPipelineOptions() {
+  const select = $("pipelineSelect");
+  select.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = state.pipelines.length ? "Select a pipeline" : "No pipelines loaded";
+  select.appendChild(empty);
+  for (const pipeline of state.pipelines) {
+    const option = document.createElement("option");
+    option.value = pipeline.name || pipeline.slug || pipeline.id;
+    option.textContent = `${pipeline.name || pipeline.slug || pipeline.id}${pipeline.version ? ` v${pipeline.version}` : ""}`;
+    select.appendChild(option);
+  }
+}
+
+function renderAccessRules() {
+  const list = $("accessList");
+  list.innerHTML = "";
+  const canEdit = Boolean(state.me?.access?.edit);
+  for (const rule of state.accessRules) {
+    const item = document.createElement("div");
+    item.className = "accessItem";
+    item.dataset.pubkey = rule.pubkey;
+    const profile = cachedProfile(rule.pubkey);
+    const identity = document.createElement("div");
+    identity.className = "accessIdentity";
+    const avatar = document.createElement("div");
+    avatar.className = "accessAvatar";
+    if (profile?.picture) {
+      const img = document.createElement("img");
+      img.src = profile.picture;
+      img.alt = "";
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = profileInitial(rule, profile);
+    }
+    const label = document.createElement("div");
+    label.className = "accessLabel";
+    const name = document.createElement("strong");
+    name.textContent = displayNameForRule(rule, profile);
+    const meta = document.createElement("span");
+    meta.textContent = `${rule.role === "edit" ? "Edit" : "Read"} - ${rule.npub}`;
+    label.append(name, meta);
+    identity.append(avatar, label);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Remove";
+    button.disabled = !canEdit;
+    button.addEventListener("click", () => removeAccessRule(rule));
+    item.append(identity, button);
+    list.appendChild(item);
+    if (!profile) {
+      void resolveProfile(rule).then(() => updateAccessRuleProfile(rule));
+    }
+  }
+}
+
+function updateAccessRuleProfile(rule) {
+  const item = $(`accessList`).querySelector(`[data-pubkey="${CSS.escape(rule.pubkey)}"]`);
+  const profile = cachedProfile(rule.pubkey);
+  if (!item || !profile) return;
+  const avatar = item.querySelector(".accessAvatar");
+  const name = item.querySelector(".accessLabel strong");
+  if (avatar) {
+    avatar.innerHTML = "";
+    if (profile.picture) {
+      const img = document.createElement("img");
+      img.src = profile.picture;
+      img.alt = "";
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = profileInitial(rule, profile);
+    }
+  }
+  if (name) name.textContent = displayNameForRule(rule, profile);
+}
+
+async function resolveProfile(rule) {
+  const existing = cachedProfile(rule.pubkey);
+  if (existing) return existing;
+  const profile = await fetchNostrProfile(rule.pubkey).catch(() => null);
+  const normalized = {
+    pubkey: rule.pubkey,
+    name: typeof profile?.name === "string" ? profile.name : "",
+    displayName: typeof profile?.display_name === "string" ? profile.display_name : typeof profile?.displayName === "string" ? profile.displayName : "",
+    picture: typeof profile?.picture === "string" ? profile.picture : "",
+    cachedAt: Date.now(),
+  };
+  state.profiles[rule.pubkey] = normalized;
+  saveProfileCache();
+  return normalized;
+}
+
+async function fetchNostrProfile(pubkey) {
+  const attempts = PROFILE_RELAYS.map((relay) => fetchProfileFromRelay(relay, pubkey));
+  const result = await Promise.any(attempts);
+  return result;
+}
+
+function fetchProfileFromRelay(relayUrl, pubkey) {
+  return new Promise((resolve, reject) => {
+    const subId = `profile-${pubkey.slice(0, 8)}-${Math.random().toString(16).slice(2)}`;
+    let bestEvent = null;
+    let settled = false;
+    const socket = new WebSocket(relayUrl);
+    const timer = setTimeout(() => {
+      finish(bestEvent ? parseProfileEvent(bestEvent) : null);
+    }, 2500);
+
+    function finish(value, error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        socket.send(JSON.stringify(["CLOSE", subId]));
+      } catch {}
+      try {
+        socket.close();
+      } catch {}
