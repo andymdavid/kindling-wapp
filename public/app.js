@@ -1231,3 +1231,249 @@ function availableProspects() {
   return orderedProspects().filter((prospect) => {
     return !state.dismissedProspects.includes(prospect.id) && !state.snoozedProspects.includes(prospect.id) && !state.actedProspects.includes(prospect.id);
   });
+}
+
+function deckProgress() {
+  const total = kindlingData.prospects.length;
+  const remaining = availableProspects().length;
+  const completed = total - remaining;
+  return { total, remaining, completed, current: remaining ? completed + 1 : total };
+}
+
+function greetingState() {
+  const progress = deckProgress();
+  const openRepliesCount = kindlingData.replies.length;
+  const quietThreads = kindlingData.replies
+    .filter((thread) => thread.state === "gone quiet")
+    .map((thread) => ({ ...thread, quietDays: Number.parseInt(thread.age, 10) || 0 }))
+    .sort((a, b) => b.quietDays - a.quietDays);
+  const coldest = quietThreads[0];
+  return {
+    firstName: "Adam",
+    deckTotal: progress.total,
+    deckRemaining: progress.remaining,
+    deckStarted: progress.completed > 0,
+    lightDeckThreshold: 3,
+    openRepliesCount,
+    coldestQuietDays: coldest?.quietDays || 0,
+    coldestQuietContactFirstName: coldest?.contact?.split(" ")[0] || "",
+    quietThresholdDays: 3,
+  };
+}
+
+function timeSalutation(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
+}
+
+function greetingCopy() {
+  const details = greetingState();
+  const topProspect = activeProspect();
+  const hasQuietThread = details.coldestQuietDays >= details.quietThresholdDays;
+  let status;
+
+  if (details.deckTotal === 0) status = "Nothing queued. Tune an offering.";
+  else if (details.deckRemaining === 0 && hasQuietThread) status = `${details.coldestQuietContactFirstName} needs a nudge.`;
+  else if (details.deckRemaining === 0 && details.openRepliesCount > 0) status = `${details.openRepliesCount} replies to move.`;
+  else if (details.deckRemaining === 0) status = "All clear. Nice work.";
+  else if (hasQuietThread) status = `${details.deckRemaining} left. Nudge ${details.coldestQuietContactFirstName}.`;
+  else if (details.deckStarted) status = `${details.deckRemaining} left. Keep the run going.`;
+  else if (details.deckTotal <= details.lightDeckThreshold) status = `Light deck. ${details.deckTotal} sharp looks.`;
+  else if (topProspect?.warmth === "warm") status = `${details.deckTotal} fresh. Start warm.`;
+  else status = `${details.deckTotal} fresh. Best card first.`;
+
+  return {
+    salutation: `${timeSalutation()}, ${details.firstName}`,
+    status,
+  };
+}
+
+function renderGreeting() {
+  const copy = greetingCopy();
+  return `
+    <section class="homeGreeting">
+      <h1>${copy.salutation}</h1>
+      <p>${copy.status}</p>
+    </section>
+  `;
+}
+
+function commandEntities() {
+  const companies = kindlingData.prospects.map((prospect) => ({ type: "company", label: prospect.company, id: prospect.id }));
+  const contacts = kindlingData.prospects.map((prospect) => ({ type: "contact", label: prospect.contact.name, id: prospect.id }));
+  const offerings = [...new Set(kindlingData.prospects.map((prospect) => prospect.offering))].map((label) => ({ type: "offering", label, id: label }));
+  return [...companies, ...contacts, ...offerings];
+}
+
+function activeProspect() {
+  const available = availableProspects();
+  return available.find((prospect) => prospect.id === state.activeProspectId) || available[0] || kindlingData.prospects[0];
+}
+
+function setPrototypeView(view, prospectId = state.activeProspectId) {
+  state.prototypeView = view;
+  state.activeProspectId = prospectId;
+  savePrototypeState();
+  renderActPrototype();
+}
+
+function recordPrototypeActivity(type, prospect, detail) {
+  state.prototypeActivity = [
+    {
+      id: `${Date.now()}-${prospect.id}`,
+      type,
+      company: prospect.company,
+      detail,
+      at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    },
+    ...state.prototypeActivity,
+  ].slice(0, 12);
+}
+
+function renderActPrototype() {
+  const page = $("actPage");
+  const view = state.prototypeView || "deck";
+  page.innerHTML = `
+    <div class="kindlingShell ${state.sidebarCollapsed ? "sidebarClosed" : ""}">
+      <aside class="kindlingNav" aria-label="Kindling navigation">
+        <div class="brandLockup">
+          <div class="brandMark">
+            <img src="/kindling-logo.png" alt="" />
+            <strong>Kindling</strong>
+          </div>
+          <button class="sidebarToggle" type="button" data-action="toggle-sidebar" aria-label="${state.sidebarCollapsed ? "Open sidebar" : "Close sidebar"}">${iconSvg(state.sidebarCollapsed ? "panelRightOpen" : "panelLeftClose")}</button>
+        </div>
+        ${renderPrototypeNav(view)}
+      </aside>
+      <section class="kindlingMain">
+        ${renderPrototypeView(view)}
+      </section>
+    </div>
+    ${state.prototypeModal ? renderPrototypeModal() : ""}
+  `;
+  bindPrototypeEvents();
+}
+
+function renderPrototypeNav(active) {
+  const progress = deckProgress();
+  const items = [
+    { id: "deck", label: "Deck", icon: "layers", count: progress.remaining, countType: "work" },
+    { id: "replies", label: "Replies", icon: "inbox", count: kindlingData.replies.length, countType: "work" },
+    { id: "offerings", label: "Offerings", icon: "sliders", count: 3, countType: "inventory" },
+    { id: "pipeline", label: "Pipeline", icon: "workflow", count: "", countType: "none" },
+  ];
+  return `<nav class="prototypeNav">${items.map((item) => `
+    <button class="${active === item.id ? "active" : ""}" type="button" data-view="${item.id}" title="${item.label}">
+      ${iconSvg(item.icon)}
+      <span>${item.label}</span>${item.count !== "" ? `<em class="${item.countType}">${item.count}</em>` : ""}
+    </button>
+  `).join("")}
+  </nav>`;
+}
+
+function iconSvg(name) {
+  const icons = {
+    layers: `<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>`,
+    inbox: `<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6l3.5-7Z"/>`,
+    sliders: `<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/>`,
+    workflow: `<rect width="8" height="8" x="3" y="3" rx="2"/><rect width="8" height="8" x="13" y="13" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/>`,
+    fileText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>`,
+    panelLeftClose: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/>`,
+    panelRightOpen: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/>`,
+  };
+  return `<svg class="navIcon" viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.layers}</svg>`;
+}
+
+function renderPrototypeView(view) {
+  if (view === "replies") return renderRepliesView();
+  if (view === "dossier") return renderDossierView(activeProspect());
+  if (view === "offerings") return renderOfferingsView();
+  if (view === "pipeline") return renderPipelineView();
+  return renderDeckView();
+}
+
+function renderDeckView() {
+  const prospects = availableProspects();
+  const prospect = activeProspect();
+  const progress = deckProgress();
+  const mode = state.deckViewMode === "overview" ? "overview" : "focused";
+  if (!prospects.length) {
+    return `
+      <div class="deckViewport">
+        <header class="homeTopbar">
+          <div></div>
+          <div class="deckHeaderActions">
+            <button type="button" data-view="replies">Replies ${kindlingData.replies.length}</button>
+          </div>
+        </header>
+        ${renderGreeting()}
+        <header class="deckHeader">
+          <div>
+            <span>Today's deck - ${progress.total} of ${progress.total}</span>
+          </div>
+        </header>
+        <section class="emptyDeck">
+          <h1>You've cleared today's deck.</h1>
+          <p>You're done with today's dealt stack. Replies are the only thing that can pull you back into active selling.</p>
+          <div class="emptyStats" aria-label="Today's deck results">
+            <span><strong>${state.actedProspects.length}</strong> acted</span>
+            <span><strong>${state.snoozedProspects.length}</strong> snoozed</span>
+            <span><strong>${state.dismissedProspects.length}</strong> dismissed</span>
+          </div>
+          <div class="emptyActions">
+            <button class="primaryAction" type="button" data-action="explore-next-tier">Explore next tier</button>
+            <button type="button" data-action="replay-deck">Replay today's deck</button>
+          </div>
+        </section>
+        ${renderCommandBar()}
+      </div>
+    `;
+  }
+  if (mode === "overview") return renderDeckOverview(prospects, progress);
+  return `
+    <div class="deckViewport">
+      <header class="homeTopbar">
+        <div></div>
+        <div class="deckHeaderActions">
+          ${renderDeckModeToggle("focused")}
+          <button type="button" data-view="replies">Replies ${kindlingData.replies.length}</button>
+        </div>
+      </header>
+      ${renderGreeting()}
+      <header class="deckHeader">
+        <div>
+          <span>Today's deck - ${progress.current} of ${progress.total}</span>
+        </div>
+      </header>
+      <div class="deckStack" aria-live="polite">
+        <div class="stackGhost ghostTwo"></div>
+        <div class="stackGhost ghostOne"></div>
+        ${renderProspectCard(prospect)}
+      </div>
+      ${renderCommandBar()}
+    </div>
+  `;
+}
+
+function renderDeckModeToggle(mode) {
+  return `
+    <div class="viewToggle" role="group" aria-label="Deck view">
+      <button class="${mode === "focused" ? "active" : ""}" type="button" data-deck-mode="focused">Focused</button>
+      <button class="${mode === "overview" ? "active" : ""}" type="button" data-deck-mode="overview">Overview</button>
+    </div>
+  `;
+}
+
+function renderDeckOverview(prospects, progress) {
+  return `
+    <div class="deckViewport">
+      <header class="homeTopbar">
+        <div></div>
+        <div class="deckHeaderActions">
+          ${renderDeckModeToggle("overview")}
+          <button type="button" data-view="replies">Replies ${kindlingData.replies.length}</button>
+        </div>
+      </header>
+      ${renderGreeting()}

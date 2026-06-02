@@ -806,3 +806,205 @@ button:disabled {
 
 .stackGhost,
 .prospectCard {
+  grid-area: 1 / 1;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.stackGhost {
+  pointer-events: none;
+  width: min(100%, 470px);
+  justify-self: center;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 245, 247, 0.98));
+  box-shadow:
+    0 18px 42px rgba(28,32,40,0.12),
+    0 4px 12px rgba(28,32,40,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+.stackGhost::before,
+.stackGhost::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  border-radius: 8px;
+  background: rgba(234, 236, 239, 0.72);
+}
+
+.stackGhost::before {
+  top: 88px;
+  height: 118px;
+}
+
+.stackGhost::after {
+  bottom: 94px;
+  height: 70px;
+}
+
+.ghostOne {
+  transform: translate(-34px, -10px) rotate(-2.6deg);
+  opacity: 0.72;
+  z-index: 1;
+}
+
+.ghostTwo {
+  transform: translate(44px, -22px) rotate(3deg);
+  opacity: 0.46;
+  z-index: 0;
+}
+
+.prospectCard {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, auto) auto auto;
+  gap: 12px;
+  padding: 20px;
+  width: min(100%, 470px);
+  min-height: 0;
+  max-height: 510px;
+  min-width: 0;
+  justify-self: center;
+  align-self: start;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  z-index: 2;
+}
+
+.prospectCard > * {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.prospectHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  min-width: 0;
+}
+
+.prospectHeader h1 {
+  margin: 0 0 4px;
+  font-size: 31px;
+  line-height: 1;
+  font-weight: 760;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.prospectHeader p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cueCluster {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.fitCue {
+  display: inline-grid;
+  min-height: 24px;
+  place-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--faint);
+  background: var(--neutral-fill);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.warmFlag,
+.statePill {
+  display: inline-grid;
+  place-items: center;
+  width: fit-content;
+  min-height: 26px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #dbe9e4;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.warmFlag.cold {
+  background: var(--neutral-fill);
+  color: var(--neutral-fill-text);
+}
+
+.whyNow,
+.relationshipLead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: start;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--coral-tint);
+  border: 1px solid rgba(184, 70, 31, 0.24);
+}
+
+.angleBlock {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-soft);
+}
+
+.whyNow p,
+.relationshipLead p,
+.angleBlock p,
+.draftPanel p,
+.detailPanel p {
+  margin: 6px 0 0;
+}
+
+.whyNow p {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.36;
+  font-weight: 500;
+}
+
+.relationshipLead p {
+  grid-column: 1 / -1;
+}
+
+.whyNow p,
+.relationshipLead p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.whyNow span,
+.relationshipLead span,
+.angleBlock span {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 760;
+  white-space: nowrap;
