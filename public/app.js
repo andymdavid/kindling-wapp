@@ -1477,3 +1477,250 @@ function renderDeckOverview(prospects, progress) {
         </div>
       </header>
       ${renderGreeting()}
+      <header class="deckHeader">
+        <div>
+          <span>Today's deck - overview</span>
+          <small>${progress.remaining} remaining from ${progress.total}</small>
+        </div>
+      </header>
+      <section class="overviewList" aria-label="Today's deck overview">
+        ${prospects.map((item, index) => `
+          <article class="overviewCard ${item.id === state.activeProspectId ? "selected" : ""}">
+            <button class="overviewMain" type="button" data-focus-prospect="${item.id}">
+              <header>
+                <span>${item.offering}</span>
+                <strong>${item.company}</strong>
+              </header>
+              <section class="${item.whyNow ? "" : "relationship"}">
+                <em>${item.whyNow ? "Why now" : "Way in"}</em>
+                <p>${item.whyNow || item.gap}</p>
+              </section>
+              <footer>
+                <span class="warmDot ${item.warmth}" title="${item.warmth}"></span>
+                <small>${item.warmth}</small>
+                <small>${item.fitScore} fit</small>
+              </footer>
+            </button>
+            <button type="button" ${index === 0 ? "disabled" : ""} data-pull-top="${item.id}">Pull to top</button>
+          </article>
+        `).join("")}
+      </section>
+      ${renderCommandBar()}
+    </div>
+  `;
+}
+
+function currentMentionQuery() {
+  const match = state.commandValue.match(/@([a-z0-9 .-]*)$/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+function commandSuggestions() {
+  const query = currentMentionQuery();
+  if (query === null) return [];
+  return commandEntities().filter((entity) => entity.label.toLowerCase().includes(query)).slice(0, 6);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function renderCommandBar() {
+  const suggestions = commandSuggestions();
+  const hasInput = Boolean(state.commandValue.trim());
+  const isOpen = hasInput || suggestions.length || state.commandResult || state.commandConfirm;
+  const context = currentUiContext();
+  return `
+    <section class="commandLayer ${isOpen ? "open" : ""}" aria-label="Command bar">
+      ${isOpen ? `<button class="commandFrost" type="button" data-action="close-command" aria-label="Close command panel"></button>` : ""}
+      ${isOpen ? `
+        <div class="commandPanel" role="dialog" aria-label="Agent chat">
+          <header>
+            <span>Agent chat</span>
+            <button type="button" data-action="close-command">Close</button>
+          </header>
+          <section class="commandContext" aria-label="Default chat context">
+            <span>Working on</span>
+            <strong>${escapeHtml(context.companyName)}</strong>
+            <small>${escapeHtml(context.personName)} · ${escapeHtml(context.mode)}</small>
+          </section>
+          ${suggestions.length ? `
+            <div class="mentionMenu">
+              ${suggestions.map((entity) => `<button type="button" data-mention="${escapeHtml(entity.label)}"><strong>${escapeHtml(entity.label)}</strong><span>${entity.type}</span></button>`).join("")}
+            </div>
+          ` : ""}
+          ${state.commandResult ? `<p class="commandResult">${escapeHtml(state.commandResult)}</p>` : ""}
+          ${state.commandConfirm ? `
+            <div class="commandConfirm">
+              <span>${escapeHtml(state.commandConfirm)}</span>
+              <button type="button" data-action="confirm-command">Confirm</button>
+              <button type="button" data-action="cancel-command">Cancel</button>
+            </div>
+          ` : ""}
+        </div>
+      ` : ""}
+      <form class="commandBar" id="commandBar">
+        <span aria-hidden="true">@</span>
+        <input id="commandInput" type="text" value="${escapeHtml(state.commandValue)}" placeholder="Ask or search. Use @ to mention a company, contact, or offering." autocomplete="off" />
+        <button type="submit">Run</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderActivitySummary() {
+  if (!state.prototypeActivity.length) return "";
+  const counts = {
+    Acted: state.actedProspects.length,
+    Dismissed: state.dismissedProspects.length,
+    Snoozed: state.snoozedProspects.length,
+  };
+  return `
+    <div class="activitySummary">
+      <h2>Captured today</h2>
+      <div class="summaryCounts">
+        ${Object.entries(counts).map(([label, count]) => `<span><strong>${count}</strong>${label}</span>`).join("")}
+      </div>
+      ${state.prototypeActivity.slice(0, 5).map((item) => `
+        <p><strong>${item.type}</strong><em>${item.company}</em><span>${item.detail}</span></p>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderProspectCard(prospect) {
+  const contact = prospect.contact;
+  const primaryAction = renderCardPrimaryAction(prospect);
+  return `
+    <article class="prospectCard ${prospect.status}">
+      <header class="prospectHeader">
+        <div>
+          <h1>${prospect.company}</h1>
+          <span>${prospect.descriptor}</span>
+        </div>
+        <div class="cueCluster" aria-label="Prospect cues">
+          <span class="warmFlag ${prospect.warmth}">${prospect.warmth}</span>
+          <span class="fitCue">${prospect.fitScore} fit</span>
+        </div>
+      </header>
+      <section class="contactRow">
+        <div class="avatar" aria-hidden="true">${contact.name.slice(0, 1)}</div>
+        <div>
+          <strong>${contact.name}</strong>
+          <span>${contact.role}</span>
+        </div>
+        <div class="channelGates" aria-label="Available outreach channels">
+          <span class="${contact.phone ? "available" : "unavailable"}">Call</span>
+          <span class="${contact.email ? "available" : "unavailable"}">Email</span>
+        </div>
+      </section>
+      ${prospect.whyNow ? `
+        <section class="whyNow">
+          <span>Why now</span>
+          <p>${prospect.whyNow}</p>
+          <button class="sourceLink" type="button" data-action="sources">${prospect.evidence.length} sources</button>
+        </section>
+      ` : `
+        <section class="relationshipLead">
+          <span>Relationship-led</span>
+          <p>No timing trigger found. Lead with fit and reachability.</p>
+        </section>
+      `}
+      <section class="angleBlock">
+        <span>Wedge</span>
+        <p>${prospect.angle}</p>
+      </section>
+      <footer class="cardActions">
+        <button type="button" data-action="dismiss">Dismiss</button>
+        <button type="button" data-action="snooze">Snooze</button>
+        <button class="dossierAction" type="button" data-view="dossier" data-prospect="${prospect.id}">View Dossier</button>
+        ${primaryAction}
+      </footer>
+    </article>
+  `;
+}
+
+function renderCardPrimaryAction(prospect) {
+  const contact = prospect.contact;
+  if (contact.email) return `<button class="primaryAction" type="button" data-action="email">Review Email</button>`;
+  if (contact.phone) return `<button class="primaryAction" type="button" data-action="call">Call ${contact.name.split(" ")[0]}</button>`;
+  return `<button class="primaryAction" type="button" data-view="dossier" data-prospect="${prospect.id}">Find path</button>`;
+}
+
+function renderDossierView(prospect) {
+  const primaryAction = prospect.contact.email
+    ? `<button class="primaryAction" type="button" data-action="email">Review Email</button>`
+    : `<button class="primaryAction" type="button" ${prospect.contact.phone ? "" : "disabled"} data-action="call">Call ${prospect.contact.name.split(" ")[0]}</button>`;
+  const evidenceReady = prospect.evidence.filter((item) => item.confidence === "High").length;
+  const totalCost = prospect.stageCosts?.reduce((sum, item) => sum + Number(item.cost.replace("$", "")), 0) || 0;
+  return `
+    <article class="dossierView">
+      <header class="surfaceHeader">
+        <div>
+          <p>Dossier</p>
+          <h1>${prospect.company}</h1>
+          <span>${prospect.descriptor}</span>
+        </div>
+        <div class="dossierHeaderActions">
+          <button type="button" data-view="deck">Back to deck</button>
+          ${primaryAction}
+        </div>
+      </header>
+      <section class="hypothesisPanel">
+        <div class="hypothesisMain">
+          <span>Hypothesis</span>
+          <h2>${prospect.gap}</h2>
+          <p>${prospect.angle}</p>
+          ${prospect.whyNow ? `<p class="whyNowInline"><strong>Why now:</strong> ${prospect.whyNow}</p>` : `<p class="whyNowInline relationship"><strong>Relationship-led:</strong> No honest timing trigger found. Verify reachability before acting.</p>`}
+        </div>
+        <div class="verificationRail">
+          <span class="statePill">${prospect.status === "ready" ? "Verified" : prospect.status === "partial" ? "Partial" : "Thin signal"}</span>
+          <p><strong>${evidenceReady}/${prospect.evidence.length}</strong> high-confidence sources</p>
+          <p><strong>${prospect.contact.email || prospect.contact.phone ? "Reachable" : "Blocked"}</strong> contact path</p>
+          <p><strong>${totalCost.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong> prototype compute spend</p>
+        </div>
+      </section>
+      <section class="dossierGrid">
+        <div class="detailPanel evidencePanel">
+          <div class="panelTitle">
+            <h2>Evidence and sources</h2>
+            <span>Openable in production</span>
+          </div>
+          ${prospect.evidence.map((item) => `
+            <button class="evidenceRow" type="button" aria-label="Source: ${item.label}">
+              <span class="sourceType">${item.type}</span>
+              <strong>${item.label}</strong>
+              <span>${item.source} - ${item.captured} - ${item.confidence} confidence</span>
+              <em>${item.url}</em>
+            </button>
+          `).join("")}
+        </div>
+        <div class="detailPanel contactPanel">
+          <div class="panelTitle">
+            <h2>Path</h2>
+            <span>${prospect.contact.confidence} confidence</span>
+          </div>
+          <div class="contactIdentity">
+            <div class="avatar" aria-hidden="true">${prospect.contact.name.slice(0, 1)}</div>
+            <div>
+              <strong>${prospect.contact.name}</strong>
+              <span>${prospect.contact.role}</span>
+            </div>
+          </div>
+          <p class="quietLine">${prospect.contact.source}</p>
+          <div class="channelGates dossierChannels">
+            <span class="${prospect.contact.phone ? "available" : "unavailable"}">Call ${prospect.contact.phone || "missing"}</span>
+            <span class="${prospect.contact.email ? "available" : "unavailable"}">Email ${prospect.contact.email || "missing"}</span>
+          </div>
+        </div>
+        <div class="detailPanel">
+          <div class="panelTitle">
+            <h2>History</h2>
+            <span>Airspace memory</span>
+          </div>
+          ${prospect.history.map((item) => `<p class="quietLine">${item}</p>`).join("")}
+        </div>
