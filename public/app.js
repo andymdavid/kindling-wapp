@@ -984,3 +984,250 @@ function fetchProfileFromRelay(relayUrl, pubkey) {
       try {
         socket.close();
       } catch {}
+      if (error || !value) reject(error || new Error("profile not found"));
+      else resolve(value);
+    }
+
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify(["REQ", subId, { kinds: [0], authors: [pubkey], limit: 1 }]));
+    });
+    socket.addEventListener("message", (event) => {
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      if (!Array.isArray(message)) return;
+      if (message[0] === "EVENT" && message[1] === subId && message[2]?.kind === 0) {
+        if (!bestEvent || Number(message[2].created_at || 0) > Number(bestEvent.created_at || 0)) bestEvent = message[2];
+      }
+      if (message[0] === "EOSE" && message[1] === subId) finish(bestEvent ? parseProfileEvent(bestEvent) : null);
+    });
+    socket.addEventListener("error", () => finish(null, new Error(`relay failed: ${relayUrl}`)));
+  });
+}
+
+function parseProfileEvent(event) {
+  const profile = JSON.parse(event.content || "{}");
+  return profile && typeof profile === "object" && !Array.isArray(profile) ? profile : null;
+}
+
+async function saveSettings() {
+  try {
+    const payload = await api("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        autopilotUrl: $("autopilotUrlInput").value.trim(),
+        defaultPipeline: $("pipelineInput").value.trim(),
+      }),
+    });
+    state.settings = payload.settings;
+    renderSettings();
+    setStatus("Settings saved");
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
+async function loadPipelines() {
+  try {
+    setStatus("Authorizing pipeline list");
+    const prepared = await api("/api/autopilot/pipelines", { method: "POST", body: "{}" });
+    let payload = prepared;
+    if (prepared.requiresAutopilotAuth && prepared.triggerRequest) {
+      const autopilotAuthorization = await signNip98Request(prepared.triggerRequest);
+      payload = await api("/api/autopilot/pipelines", {
+        method: "POST",
+        body: JSON.stringify({ autopilotAuthorization }),
+      });
+    }
+    state.pipelines = payload.pipelines || [];
+    savePipelinesCache();
+    renderPipelineOptions();
+    setStatus(`Loaded ${state.pipelines.length} pipelines`);
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
+async function addAccess() {
+  try {
+    const payload = await api("/api/access-rules", {
+      method: "POST",
+      body: JSON.stringify({
+        npub: $("accessNpubInput").value.trim(),
+        role: $("accessRoleSelect").value,
+      }),
+    });
+    state.accessRules = payload.accessRules || [];
+    $("accessNpubInput").value = "";
+    renderAccessRules();
+    setStatus("Access updated");
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
+async function removeAccessRule(rule) {
+  try {
+    const payload = await api(`/api/access-rules/${encodeURIComponent(rule.role)}/${encodeURIComponent(rule.npub)}`, {
+      method: "DELETE",
+    });
+    state.accessRules = payload.accessRules || [];
+    renderAccessRules();
+    setStatus("Access updated");
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
+function renderChats() {
+  const list = $("chatList");
+  list.innerHTML = "";
+  for (const chat of state.chats) {
+    const button = document.createElement("button");
+    button.className = `chatItem${chat.id === state.activeChatId ? " active" : ""}`;
+    button.innerHTML = `<strong></strong><span></span>`;
+    button.querySelector("strong").textContent = chat.title;
+    button.querySelector("span").textContent = chat.preview || "No messages yet";
+    button.addEventListener("click", async () => {
+      state.activeChatId = chat.id;
+      localStorage.setItem("chat_wapp_chat", chat.id);
+      renderChats();
+      await loadActiveChat();
+    });
+    list.appendChild(button);
+  }
+}
+
+async function newChat() {
+  const payload = await api("/api/chats", { method: "POST", body: "{}" });
+  state.activeChatId = payload.chat.id;
+  localStorage.setItem("chat_wapp_chat", state.activeChatId);
+  await loadChats();
+  await loadActiveChat();
+}
+
+async function loadActiveChat() {
+  if (!state.activeChatId) return;
+  const payload = await api(`/api/chats/${encodeURIComponent(state.activeChatId)}/messages`);
+  $("chatTitle").textContent = payload.chat.title;
+  renderMessages(payload.messages || []);
+  renderChats();
+}
+
+function renderMessages(messages) {
+  const box = $("messages");
+  box.innerHTML = "";
+  for (const message of messages) {
+    const node = document.createElement("div");
+    node.className = `message ${message.role} ${message.status}`;
+    node.textContent = message.status === "pending" ? "Thinking..." : message.content;
+    box.appendChild(node);
+  }
+  box.scrollTop = box.scrollHeight;
+  const pending = messages.some((message) => message.status === "pending");
+  setStatus(pending ? "Pipeline running" : "Ready");
+}
+
+async function sendMessage(event) {
+  event.preventDefault();
+  const input = $("messageInput");
+  const content = input.value.trim();
+  if (!content || !state.activeChatId) return;
+  input.value = "";
+  $("sendButton").disabled = true;
+  try {
+    const payload = await api(`/api/chats/${encodeURIComponent(state.activeChatId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+    renderMessages(payload.messages || []);
+    if (payload.requiresAutopilotAuth && payload.triggerRequest) {
+      setStatus("Authorizing pipeline");
+      const autopilotAuthorization = await signNip98Request(payload.triggerRequest);
+      const started = await api(`/api/pipeline-runs/${encodeURIComponent(payload.runId)}/start`, {
+        method: "POST",
+        body: JSON.stringify({ autopilotAuthorization }),
+      });
+      renderMessages(started.messages || []);
+    }
+    await loadChats();
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    $("sendButton").disabled = false;
+    input.focus();
+  }
+}
+
+async function signNip98Request(triggerRequest) {
+  if (!window.nostr) throw new Error("No Nostr browser extension was found.");
+  const tags = [
+    ["u", triggerRequest.url],
+    ["method", triggerRequest.method || "POST"],
+  ];
+  if (triggerRequest.body !== undefined) {
+    const bodyJson = JSON.stringify(triggerRequest.body);
+    tags.push(["payload", await sha256Hex(bodyJson)]);
+  }
+  const event = await window.nostr.signEvent({
+    kind: 27235,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content: "",
+  });
+  return `Nostr ${base64Utf8(JSON.stringify(event))}`;
+}
+
+async function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function base64Utf8(value) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function startPolling() {
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = setInterval(async () => {
+    if (state.route === "/chat" && state.activeChatId && state.token) {
+      await loadActiveChat().catch(() => undefined);
+      await loadChats().catch(() => undefined);
+    }
+  }, 1500);
+}
+
+function savePrototypeState() {
+  localStorage.setItem("kindling_view", state.prototypeView);
+  localStorage.setItem("kindling_active_prospect", state.activeProspectId);
+  localStorage.setItem("kindling_dismissed", JSON.stringify(state.dismissedProspects));
+  localStorage.setItem("kindling_snoozed", JSON.stringify(state.snoozedProspects));
+  localStorage.setItem("kindling_acted", JSON.stringify(state.actedProspects));
+  localStorage.setItem("kindling_activity", JSON.stringify(state.prototypeActivity.slice(0, 12)));
+  sessionStorage.setItem("kindling_deck_view_mode", state.deckViewMode);
+  sessionStorage.setItem("kindling_deck_order", JSON.stringify(normalizedDeckOrder()));
+}
+
+function normalizedDeckOrder() {
+  const ids = kindlingData.prospects.map((prospect) => prospect.id);
+  return [...state.deckOrder.filter((id) => ids.includes(id)), ...ids.filter((id) => !state.deckOrder.includes(id))];
+}
+
+function orderedProspects() {
+  const byId = new Map(kindlingData.prospects.map((prospect) => [prospect.id, prospect]));
+  return normalizedDeckOrder().map((id) => byId.get(id)).filter(Boolean);
+}
+
+function availableProspects() {
+  return orderedProspects().filter((prospect) => {
+    return !state.dismissedProspects.includes(prospect.id) && !state.snoozedProspects.includes(prospect.id) && !state.actedProspects.includes(prospect.id);
+  });
