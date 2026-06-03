@@ -1724,3 +1724,249 @@ function renderDossierView(prospect) {
           </div>
           ${prospect.history.map((item) => `<p class="quietLine">${item}</p>`).join("")}
         </div>
+        <div class="detailPanel computePanel">
+          <div class="panelTitle">
+            <h2>Compute trail</h2>
+            <span>Why it reached the deck</span>
+          </div>
+          ${prospect.stageCosts.map((item, index) => `
+            <div class="computeStep">
+              <span>${index}</span>
+              <div>
+                <strong>${item.stage}</strong>
+                <p>${item.outcome}</p>
+              </div>
+              <em>${item.cost}</em>
+            </div>
+          `).join("")}
+        </div>
+        <div class="detailPanel draftPanel">
+          <div class="panelTitle">
+            <h2>Draft opener</h2>
+            <span>Human review required</span>
+          </div>
+          <p>${prospect.draft}</p>
+          ${primaryAction}
+        </div>
+        <div class="detailPanel profilePanel">
+          <div class="panelTitle">
+            <h2>Profile fields</h2>
+            <span>Demoted editing surface</span>
+          </div>
+          <dl>
+            <div><dt>Offering</dt><dd>${prospect.offering}</dd></div>
+            <div><dt>Mode</dt><dd>${prospect.mode.replace("_", "-")}</dd></div>
+            <div><dt>Warmth</dt><dd>${prospect.warmth}</dd></div>
+            <div><dt>Fit score</dt><dd>${prospect.fitScore}</dd></div>
+          </dl>
+        </div>
+      </section>
+      ${prospect.researchBrief ? renderResearchBrief(prospect.researchBrief) : ""}
+    </article>
+  `;
+}
+
+function renderResearchBrief(brief) {
+  return `
+    <section class="researchBrief">
+      <header class="panelTitle">
+        <div>
+          <h2>${brief.title}</h2>
+          <span>Backend-style research output</span>
+        </div>
+      </header>
+      <section class="briefSummary">
+        <h3>Executive summary</h3>
+        ${brief.executiveSummary.map((item) => `<p>${item}</p>`).join("")}
+      </section>
+      <section class="briefBands">
+        <div>
+          <h3>Service lines</h3>
+          <div class="briefPills">${brief.serviceLines.map((item) => `<span>${item}</span>`).join("")}</div>
+        </div>
+        <div>
+          <h3>Strategic signals</h3>
+          ${renderBriefList(brief.strategicSignals)}
+        </div>
+      </section>
+      <section class="opportunityList">
+        <h3>High-value opportunity areas</h3>
+        ${brief.opportunityAreas.map((area, index) => `
+          <article class="opportunityItem">
+            <span>${index + 1}</span>
+            <div>
+              <h4>${area.title}</h4>
+              <p><strong>Evidence:</strong> ${area.evidence}</p>
+              <p><strong>Hypothesis:</strong> ${area.hypothesis}</p>
+              <div class="briefColumns">
+                <div>
+                  <h5>Likely value</h5>
+                  ${renderBriefList(area.value)}
+                </div>
+                <div>
+                  <h5>Target departments</h5>
+                  ${renderBriefList(area.targets)}
+                </div>
+              </div>
+            </div>
+          </article>
+        `).join("")}
+      </section>
+      <section class="briefBands">
+        <div>
+          <h3>Recommended outreach strategy</h3>
+          <p>${brief.outreachStrategy.positioning}</p>
+          <h4>Best entry points</h4>
+          ${renderBriefList(brief.outreachStrategy.entryPoints)}
+          <h4>Suggested pilots</h4>
+          ${renderBriefList(brief.outreachStrategy.pilots)}
+        </div>
+        <div>
+          <h3>Discovery questions</h3>
+          ${renderBriefList(brief.discoveryQuestions)}
+        </div>
+      </section>
+      <section class="briefBands">
+        <div>
+          <h3>Limitations and uncertainty</h3>
+          ${renderBriefList(brief.limitations)}
+        </div>
+        <div>
+          <h3>Sources</h3>
+          <div class="sourceList">
+            ${brief.sources.map((source) => `<button type="button">${source}</button>`).join("")}
+          </div>
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderBriefList(items) {
+  return `<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
+}
+
+function renderRepliesView() {
+  return `
+    <section class="listSurface">
+      <header class="surfaceHeader">
+        <div>
+          <p>Replies</p>
+          <h1>Live threads</h1>
+          <span>Sorted by urgency, coldest first.</span>
+        </div>
+        <button type="button" data-view="deck">Back to deck</button>
+      </header>
+      <div class="replyList">
+        ${kindlingData.replies.map((thread) => `
+          <article class="replyCard">
+            <div class="replyTime ${thread.urgency}">${thread.age}</div>
+            <div>
+              <span class="statePill">${thread.state}</span>
+              <h2>${thread.contact} - ${thread.company}</h2>
+              <p>${thread.gist}</p>
+            </div>
+            <button class="primaryAction" type="button" data-action="advance-thread">${thread.nextMove}</button>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderOfferingsView() {
+  return `
+    <section class="listSurface">
+      <header class="surfaceHeader">
+        <div>
+          <p>Offerings</p>
+          <h1>Configurable ICPs</h1>
+          <span>Market profiles from the DataModel.md contract.</span>
+        </div>
+      </header>
+      <div class="offeringGrid">
+        ${kindlingModel.marketProfiles.map((profile) => {
+          const matchedCount = kindlingModel.matches.filter((match) => match.marketProfileId === profile.id).length;
+          const version = profile.currentVersion;
+          return `
+          <article class="detailPanel">
+            <span class="statePill">v${version.versionNumber}</span>
+            <h2>${profile.name}</h2>
+            <p><strong>Target:</strong> ${profile.targetSegment}</p>
+            <p><strong>Matched:</strong> ${matchedCount} companies in today's prototype deck.</p>
+            <button type="button">Clone version</button>
+          </article>
+        `; }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderPipelineView() {
+  const stages = [
+    ["Stage 0", "Rules only", "412 killed", "$0"],
+    ["Stage 1", "Cheap signal pass", "89 survivors", "$38"],
+    ["Stage 2", "Deep research", "31 researched", "$214"],
+    ["Stage 3", "Synthesis", "18 deck-ready", "$72"],
+  ];
+  return `
+    <section class="listSurface">
+      <header class="surfaceHeader">
+        <div>
+          <p>Pipeline</p>
+          <h1>Funnel visibility</h1>
+          <span>Operator view, kept out of the daily sales path.</span>
+        </div>
+      </header>
+      <div class="funnelGrid">
+        ${stages.map(([stage, label, count, cost]) => `
+          <article class="funnelStage">
+            <span>${stage}</span>
+            <h2>${label}</h2>
+            <strong>${count}</strong>
+            <p>${cost} estimated spend</p>
+          </article>
+        `).join("")}
+      </div>
+      <div class="detailPanel">
+        <h2>Sample compute trail</h2>
+        ${activeProspect().computeTrail.map((item) => `<p class="trailLine">${item}</p>`).join("")}
+      </div>
+      <div class="detailPanel">
+        <h2>Feedback loop</h2>
+        ${renderActivitySummary() || `<p class="quietLine">No deck feedback captured yet.</p>`}
+      </div>
+      <div class="detailPanel">
+        <h2>Data model</h2>
+        <p class="quietLine">${kindlingModel.ownerCompany.name} - ${kindlingModel.marketProfiles.length} market profiles - ${kindlingModel.companies.length} companies - ${kindlingModel.people.length} people</p>
+        <p class="quietLine">${kindlingModel.sources.length} sources - ${kindlingModel.matches.length} matches - ${kindlingModel.outreachDrafts.length} outreach drafts - ${kindlingModel.activities.length} activities</p>
+      </div>
+    </section>
+  `;
+}
+
+function renderPrototypeModal() {
+  const prospect = activeProspect();
+  if (state.prototypeModal === "dismiss") {
+    const reasons = ["Already a client", "Too big", "Bad timing", "Wrong fit"];
+    return `
+      <div class="modalScrim">
+        <section class="prototypeModal">
+          <h2>Why dismiss ${prospect.company}?</h2>
+          <p>One tap records a disqualified outcome for the prototype deck.</p>
+          <div class="reasonGrid">
+            ${reasons.map((reason, index) => `<button type="button" data-dismiss-reason="${reason}"><kbd>${index + 1}</kbd>${reason}</button>`).join("")}
+          </div>
+          <button type="button" data-action="close-modal">Cancel</button>
+        </section>
+      </div>
+    `;
+  }
+  if (state.prototypeModal === "snooze") {
+    return `
+      <div class="modalScrim">
+        <section class="prototypeModal">
+          <h2>Snooze ${prospect.company}</h2>
+          <p>Choose the wake condition that should bring this prospect back.</p>
+          <div class="reasonGrid">
+            ${["30 days", "When signal refreshes", "After next job ad"].map((reason) => `<button type="button" data-snooze-reason="${reason}">${reason}</button>`).join("")}

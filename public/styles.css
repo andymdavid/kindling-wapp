@@ -1412,3 +1412,205 @@ button:disabled {
   align-self: start;
   width: 82px;
   display: grid;
+  place-items: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--neutral-fill);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.evidenceRow span,
+.evidenceRow em,
+.quietLine,
+.trailLine {
+  color: var(--muted);
+}
+
+.evidenceRow em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.contactPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.contactIdentity {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.contactIdentity span {
+  display: block;
+  color: var(--muted);
+}
+
+.dossierChannels {
+  justify-content: flex-start;
+}
+
+.computePanel {
+  display: grid;
+  gap: 10px;
+}
+
+.computeStep {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--neutral-fill);
+}
+
+.computeStep > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.computeStep p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.computeStep em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.trailLine {
+  padding-left: 12px;
+  border-left: 3px solid rgba(21, 96, 74, 0.24);
+}
+
+.profilePanel dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.profilePanel dl div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.profilePanel dt {
+  color: var(--muted);
+}
+
+.profilePanel dd {
+  margin: 0;
+}
+
+.draftPanel {
+  align-content: start;
+}
+
+.draftPanel > p {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  line-height: 1.55;
+}
+
+.researchBrief {
+  display: grid;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.briefSummary,
+.briefBands > div,
+.opportunityList {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 18px;
+}
+
+.briefSummary h3,
+.briefBands h3,
+.opportunityList h3,
+.opportunityItem h4,
+.briefColumns h5 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.briefSummary p,
+.briefBands p,
+.opportunityItem p {
+  margin: 10px 0 0;
+}
+
+.briefBands,
+.briefColumns {
+  display: grid;
+  gap: 14px;
+}
+
+.briefBands {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.briefColumns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.briefPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.briefPills span {
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--neutral-fill);
+  color: var(--neutral-fill-text);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.briefBands ul,
+.opportunityItem ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.briefBands li,
+.opportunityItem li {
+  margin-top: 6px;
+  color: var(--neutral-fill-text);
+}
+
+.opportunityList {
+  display: grid;
