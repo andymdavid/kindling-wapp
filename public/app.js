@@ -2217,3 +2217,250 @@ function bindPrototypeEvents() {
   for (const button of page.querySelectorAll("[data-mention]")) {
     button.addEventListener("click", () => insertMention(button.dataset.mention));
   }
+  const commandInput = $("commandInput");
+  if (commandInput) {
+    commandInput.addEventListener("input", () => {
+      state.commandValue = commandInput.value;
+      state.commandResult = "";
+      state.commandConfirm = null;
+      renderActPrototype();
+      focusCommandEnd();
+    });
+  }
+  const commandBar = $("commandBar");
+  if (commandBar) commandBar.addEventListener("submit", handleCommandSubmit);
+  const confirmButton = page.querySelector("[data-action='confirm-command']");
+  if (confirmButton) {
+    confirmButton.addEventListener("click", () => {
+      state.commandResult = "Confirmed in prototype. Production would execute the side effect through a permissioned action.";
+      state.commandConfirm = null;
+      renderActPrototype();
+    });
+  }
+  const cancelButton = page.querySelector("[data-action='cancel-command']");
+  if (cancelButton) {
+    cancelButton.addEventListener("click", () => {
+      state.commandConfirm = null;
+      state.commandResult = "Command cancelled.";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='close-command']")) {
+    button.addEventListener("click", () => {
+      state.commandResult = "";
+      state.commandConfirm = null;
+      state.commandValue = "";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='dismiss']")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = "dismiss";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='snooze']")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = "snooze";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='call']")) {
+    button.addEventListener("click", () => {
+      const prospect = activeProspect();
+      recordPrototypeActivity("Call queued", prospect, prospect.contact.phone || "No phone available");
+      markActed(prospect);
+      moveToNextProspect();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='email']")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = "email";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='sources']")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = "sources";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='close-modal']")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = null;
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-dismiss-reason]")) {
+    button.addEventListener("click", () => {
+      const prospect = activeProspect();
+      recordPrototypeActivity("Dismissed", prospect, button.dataset.dismissReason);
+      state.dismissedProspects = [...new Set([...state.dismissedProspects, prospect.id])];
+      state.prototypeModal = null;
+      moveToNextProspect();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-snooze-reason]")) {
+    button.addEventListener("click", () => {
+      const prospect = activeProspect();
+      recordPrototypeActivity("Snoozed", prospect, button.dataset.snoozeReason);
+      state.snoozedProspects = [...new Set([...state.snoozedProspects, prospect.id])];
+      state.prototypeModal = null;
+      moveToNextProspect();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='send-email']")) {
+    button.addEventListener("click", () => {
+      const prospect = activeProspect();
+      recordPrototypeActivity("Draft reviewed", prospect, `Email path to ${prospect.contact.name}`);
+      markActed(prospect);
+      state.prototypeModal = null;
+      moveToNextProspect();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='copy-email']")) {
+    button.addEventListener("click", async () => {
+      const prospect = activeProspect();
+      const draft = currentEmailDraft(prospect);
+      if (navigator.clipboard) await navigator.clipboard.writeText(emailBody(prospect, draft.subject, draft.body)).catch(() => undefined);
+      recordPrototypeActivity("Email copied", prospect, `Draft copied for ${prospect.contact.name}`);
+      state.commandResult = "Email copied to clipboard.";
+      state.prototypeModal = null;
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='open-mail']")) {
+    button.addEventListener("click", () => {
+      const prospect = activeProspect();
+      const draft = currentEmailDraft(prospect);
+      recordPrototypeActivity("Mail opened", prospect, `Draft opened for ${prospect.contact.name}`);
+      window.location.href = mailtoUrl(prospect, draft.subject, draft.body);
+      state.prototypeModal = null;
+      renderActPrototype();
+    });
+  }
+  const exploreButton = page.querySelector("[data-action='explore-next-tier']");
+  if (exploreButton) {
+    exploreButton.addEventListener("click", () => {
+      state.dismissedProspects = [];
+      state.snoozedProspects = [];
+      state.actedProspects = [];
+      state.activeProspectId = kindlingData.prospects[0].id;
+      recordPrototypeActivity("Next tier opened", kindlingData.prospects[0], "Prototype reloaded the deck as weaker-tier supply");
+      savePrototypeState();
+      renderActPrototype();
+    });
+  }
+  const replayButton = page.querySelector("[data-action='replay-deck']");
+  if (replayButton) {
+    replayButton.addEventListener("click", () => {
+      state.dismissedProspects = [];
+      state.snoozedProspects = [];
+      state.actedProspects = [];
+      state.activeProspectId = kindlingData.prospects[0].id;
+      recordPrototypeActivity("Deck replayed", kindlingData.prospects[0], "Today reset for review");
+      savePrototypeState();
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='advance-thread']")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = "email";
+      state.activeProspectId = "stirling-industries";
+      renderActPrototype();
+    });
+  }
+}
+
+window.addEventListener("keydown", (event) => {
+  if (state.route !== "/" && state.route !== "/act") return;
+  const activeTag = document.activeElement?.tagName?.toLowerCase();
+  const typing = activeTag === "input" || activeTag === "textarea" || activeTag === "select";
+  if (!state.prototypeModal && state.prototypeView === "deck" && (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"))) {
+    event.preventDefault();
+    focusCommandEnd();
+    return;
+  }
+  if (typing) return;
+  if (state.prototypeModal) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      state.prototypeModal = null;
+      renderActPrototype();
+    }
+    if (state.prototypeModal === "dismiss" && ["1", "2", "3", "4"].includes(event.key)) {
+      event.preventDefault();
+      const reasons = ["Already a client", "Too big", "Bad timing", "Wrong fit"];
+      const prospect = activeProspect();
+      recordPrototypeActivity("Dismissed", prospect, reasons[Number(event.key) - 1]);
+      state.dismissedProspects = [...new Set([...state.dismissedProspects, prospect.id])];
+      state.prototypeModal = null;
+      moveToNextProspect();
+    }
+    return;
+  }
+  if (state.prototypeView !== "deck") return;
+  if (event.key.toLowerCase() === "o") {
+    event.preventDefault();
+    state.deckViewMode = state.deckViewMode === "overview" ? "focused" : "overview";
+    savePrototypeState();
+    renderActPrototype();
+    return;
+  }
+  if (state.deckViewMode === "overview") return;
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    state.prototypeModal = "dismiss";
+    renderActPrototype();
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    state.prototypeModal = "snooze";
+    renderActPrototype();
+  }
+  if (event.key === "ArrowRight" || event.key === "Enter") {
+    event.preventDefault();
+    if (activeProspect().contact.email) {
+      state.prototypeModal = "email";
+      renderActPrototype();
+    } else if (activeProspect().contact.phone) {
+      const prospect = activeProspect();
+      recordPrototypeActivity("Call queued", prospect, prospect.contact.phone);
+      markActed(prospect);
+      moveToNextProspect();
+    }
+  }
+  if (event.key.toLowerCase() === "d") {
+    event.preventDefault();
+    setPrototypeView("dossier");
+  }
+});
+
+$("previewButton").addEventListener("click", () => navigate("/act"));
+$("loginButton").addEventListener("click", login);
+$("logoutButton").addEventListener("click", logout);
+$("newChatButton").addEventListener("click", newChat);
+$("homeActButton").addEventListener("click", () => navigate("/act"));
+$("homeChatButton").addEventListener("click", () => navigate("/chat"));
+$("homeSettingsButton").addEventListener("click", () => navigate("/settings"));
+$("settingsHomeButton").addEventListener("click", () => navigate("/"));
+$("saveSettingsButton").addEventListener("click", saveSettings);
+$("loadPipelinesButton").addEventListener("click", loadPipelines);
+$("addAccessButton").addEventListener("click", addAccess);
+$("pipelineSelect").addEventListener("change", () => {
+  if ($("pipelineSelect").value) $("pipelineInput").value = $("pipelineSelect").value;
+});
+$("composer").addEventListener("submit", sendMessage);
+$("messageInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    $("composer").requestSubmit();
+  }
+});
+
+window.addEventListener("popstate", () => {
+  void renderRoute();
+});
+
+if (state.token) bootApp();
+else void renderRoute();
