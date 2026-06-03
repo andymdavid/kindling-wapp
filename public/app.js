@@ -1970,3 +1970,250 @@ function renderPrototypeModal() {
           <p>Choose the wake condition that should bring this prospect back.</p>
           <div class="reasonGrid">
             ${["30 days", "When signal refreshes", "After next job ad"].map((reason) => `<button type="button" data-snooze-reason="${reason}">${reason}</button>`).join("")}
+          </div>
+          <button type="button" data-action="close-modal">Cancel</button>
+        </section>
+      </div>
+    `;
+  }
+  if (state.prototypeModal === "sources") {
+    return `
+      <div class="modalScrim">
+        <section class="prototypeModal sourceReview">
+          <h2>Sources for ${prospect.company}</h2>
+          <p>Each claim on the card needs a resolvable source before it should feel outreach ready.</p>
+          ${prospect.evidence.map((item) => `
+            <button class="evidenceRow" type="button">
+              <strong>${item.label}</strong>
+              <span>${item.source} - ${item.captured} - ${item.confidence}</span>
+            </button>
+          `).join("")}
+          <div class="modalActions">
+            <button type="button" data-action="close-modal">Close</button>
+            <button class="primaryAction" type="button" data-view="dossier" data-prospect="${prospect.id}">Open dossier</button>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+  const subject = emailSubject(prospect);
+  return `
+    <div class="modalScrim">
+      <section class="prototypeModal emailReview">
+        <header class="emailReviewHeader">
+          <div>
+            <span>Email preview</span>
+            <h2>${prospect.contact.name}</h2>
+          </div>
+          <button type="button" data-action="close-modal" aria-label="Close email preview">Close</button>
+        </header>
+        <div class="emailMeta">
+          <span>To</span>
+          <strong>${prospect.contact.email || "No email available"}</strong>
+          <span>Subject</span>
+          <input id="emailSubjectInput" type="text" value="${escapeHtml(subject)}" aria-label="Email subject" />
+        </div>
+        <article class="emailPaper">
+          <textarea id="emailBodyInput" rows="8" aria-label="Email body">${escapeHtml(prospect.draft)}</textarea>
+        </article>
+        <div class="modalActions">
+          <button type="button" data-action="copy-email">Copy</button>
+          <button class="primaryAction" type="button" ${prospect.contact.email ? "" : "disabled"} data-action="open-mail">Open in Mail</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function emailSubject(prospect) {
+  if (prospect.emailSubject) return prospect.emailSubject;
+  if (prospect.offering.includes("Website")) return `Quick mobile audit for ${prospect.company}`;
+  if (prospect.offering.includes("AI")) return `Workflow audit for ${prospect.company}`;
+  if (prospect.mode === "relationship_led") return `Possible fit for ${prospect.company}`;
+  return `Idea for ${prospect.company}`;
+}
+
+function emailBody(prospect, subject = emailSubject(prospect), body = prospect.draft) {
+  return `Subject: ${subject}\n\n${body}`;
+}
+
+function currentEmailDraft(prospect) {
+  return {
+    subject: $("emailSubjectInput")?.value || emailSubject(prospect),
+    body: $("emailBodyInput")?.value || prospect.draft,
+  };
+}
+
+function mailtoUrl(prospect, subject = emailSubject(prospect), body = prospect.draft) {
+  return `mailto:${encodeURIComponent(prospect.contact.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function moveToNextProspect() {
+  const next = availableProspects()[0];
+  if (next) state.activeProspectId = next.id;
+  savePrototypeState();
+  renderActPrototype();
+}
+
+function markActed(prospect) {
+  state.actedProspects = [...new Set([...state.actedProspects, prospect.id])];
+}
+
+function pullProspectToTop(prospectId) {
+  const current = normalizedDeckOrder();
+  state.deckOrder = [prospectId, ...current.filter((id) => id !== prospectId)];
+  state.activeProspectId = prospectId;
+  savePrototypeState();
+}
+
+function insertMention(label) {
+  state.commandValue = state.commandValue.replace(/@([a-z0-9 .-]*)$/i, `@${label} `);
+  renderActPrototype();
+  focusCommandEnd();
+}
+
+function focusCommandEnd() {
+  const input = $("commandInput");
+  if (!input) return;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function currentUiContext() {
+  const prospect = activeProspect();
+  return {
+    surface: state.prototypeView,
+    deckViewMode: state.deckViewMode,
+    companyId: prospect.modelRefs?.companyId || prospect.id,
+    personId: prospect.modelRefs?.personId || "",
+    matchId: prospect.modelRefs?.matchId || "",
+    outreachDraftId: prospect.modelRefs?.outreachDraftId || "",
+    companyName: prospect.company,
+    personName: prospect.contact.name,
+    mode: prospect.contact.email ? "outreach draft" : prospect.contact.phone ? "call path" : "dossier path",
+  };
+}
+
+const kindlingAgentTools = {
+  findProspectByText(value) {
+    const lower = value.toLowerCase();
+    const entity = commandEntities().find((item) => lower.includes(`@${item.label.toLowerCase()}`) || lower.includes(item.label.toLowerCase()));
+    if (!entity) return null;
+    return kindlingData.prospects.find((item) => item.id === entity.id) || null;
+  },
+  activeObjects() {
+    const prospect = activeProspect();
+    const refs = prospect.modelRefs || {};
+    return {
+      prospect,
+      company: kindlingModel.companies.find((item) => item.id === refs.companyId),
+      person: kindlingModel.people.find((item) => item.id === refs.personId),
+      match: kindlingModel.matches.find((item) => item.id === refs.matchId),
+      outreachDraft: kindlingModel.outreachDrafts.find((item) => item.id === refs.outreachDraftId),
+      sources: kindlingModel.sources.filter((item) => item.companyId === refs.companyId),
+    };
+  },
+  searchWeakEvidence() {
+    return kindlingData.prospects.filter((prospect) => prospect.status !== "ready" || prospect.evidence.filter((item) => item.confidence === "High").length < 2);
+  },
+  searchWarmProspects() {
+    return kindlingData.prospects.filter((prospect) => prospect.warmth === "warm");
+  },
+};
+
+function handleCommandSubmit(event) {
+  event.preventDefault();
+  const input = $("commandInput");
+  const value = input?.value.trim() || "";
+  state.commandValue = value;
+  if (!value) {
+    state.commandResult = "";
+    state.commandConfirm = null;
+    renderActPrototype();
+    return;
+  }
+  const lower = value.toLowerCase();
+  const mentionedProspect = kindlingAgentTools.findProspectByText(value);
+  const sideEffect = /\b(send|snooze|dismiss|bulk|mark|change|move|delete)\b/i.test(value);
+  if (sideEffect) {
+    state.commandConfirm = `Confirm before running: ${value}`;
+    state.commandResult = "";
+  } else if (mentionedProspect) {
+    state.activeProspectId = mentionedProspect.id;
+    state.commandResult = `Context set to ${mentionedProspect.company}. I can use its company, person, match, sources, and outreach draft.`;
+    state.commandConfirm = null;
+  } else if (lower.includes("stress test") && lower.includes("email")) {
+    const { prospect, outreachDraft, sources } = kindlingAgentTools.activeObjects();
+    const issues = [
+      sources.length ? "" : "No sources are attached to this draft.",
+      outreachDraft?.pitchText?.length > 700 ? "The email is probably too long for first-touch outreach." : "",
+      /—|–/.test(outreachDraft?.pitchText || "") ? "The draft contains dash punctuation that violates the current writing rules." : "",
+      prospect.whyNow ? "" : "This is fit-led, so the email should not pretend there is a timing trigger.",
+    ].filter(Boolean);
+    state.commandResult = issues.length
+      ? `${prospect.company} draft stress test: ${issues.join(" ")}`
+      : `${prospect.company} draft stress test: trigger is specific, CTA is light, and the claims stay close to the available sources.`;
+    state.commandConfirm = null;
+  } else if (lower.includes("why") && lower.includes("score")) {
+    state.commandResult = `${activeProspect().company} scores ${activeProspect().fitScore} because the current hypothesis has corroborated fit, reachability, and timing evidence.`;
+    state.commandConfirm = null;
+  } else if (lower.includes("weak evidence")) {
+    const matches = kindlingAgentTools.searchWeakEvidence();
+    state.commandResult = `Weak evidence: ${matches.map((prospect) => prospect.company).join(", ") || "none in the current deck"}.`;
+    state.commandConfirm = null;
+  } else if (lower.includes("warm prospect") || lower.includes("warm prospects")) {
+    const matches = kindlingAgentTools.searchWarmProspects();
+    state.commandResult = `Warm prospects: ${matches.map((prospect) => prospect.company).join(", ") || "none in the current deck"}.`;
+    state.commandConfirm = null;
+  } else {
+    const context = currentUiContext();
+    state.commandResult = `Using ${context.companyName} as the default context. Broader queries can search companies, people, sources, matches, and drafts.`;
+    state.commandConfirm = null;
+  }
+  savePrototypeState();
+  renderActPrototype();
+}
+
+function bindPrototypeEvents() {
+  const page = $("actPage");
+  for (const button of page.querySelectorAll("[data-view]")) {
+    button.addEventListener("click", () => {
+      state.prototypeModal = null;
+      setPrototypeView(button.dataset.view, button.dataset.prospect || state.activeProspectId);
+    });
+  }
+  const chatButton = page.querySelector("[data-action='chat']");
+  if (chatButton) chatButton.addEventListener("click", () => navigate("/chat"));
+  const sidebarButton = page.querySelector("[data-action='toggle-sidebar']");
+  if (sidebarButton) {
+    sidebarButton.addEventListener("click", () => {
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      sessionStorage.setItem("kindling_sidebar_collapsed", state.sidebarCollapsed ? "1" : "0");
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-deck-mode]")) {
+    button.addEventListener("click", () => {
+      state.deckViewMode = button.dataset.deckMode;
+      savePrototypeState();
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-focus-prospect]")) {
+    button.addEventListener("click", () => {
+      state.activeProspectId = button.dataset.focusProspect;
+      state.deckViewMode = "focused";
+      savePrototypeState();
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-pull-top]")) {
+    button.addEventListener("click", () => {
+      pullProspectToTop(button.dataset.pullTop);
+      state.deckViewMode = "focused";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-mention]")) {
+    button.addEventListener("click", () => insertMention(button.dataset.mention));
+  }
