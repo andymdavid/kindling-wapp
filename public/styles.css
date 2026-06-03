@@ -1816,3 +1816,205 @@ button:disabled {
   margin: 0;
   color: var(--body);
   font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.emailPaper textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.emailReview .modalActions {
+  justify-content: flex-end;
+}
+
+.emailReview .modalActions button {
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.prototypeModal h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.prototypeModal p {
+  margin: -6px 0 0;
+  color: var(--muted);
+}
+
+.reasonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reasonGrid button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+kbd {
+  min-width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--neutral-fill);
+  color: var(--muted);
+  font: 700 12px/1 ui-sans-serif, system-ui, sans-serif;
+}
+
+.settingsPage {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.settingsFrame {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.pageHeader h1 {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+}
+
+.sidebar {
+  border-right: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.86);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100vh;
+}
+
+.sidebarTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.npub {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.newChat {
+  width: 100%;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(28,32,40,0.08);
+}
+
+.settingsPanel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  box-shadow: var(--shadow-soft);
+}
+
+.settingsPanel summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.settingsPanel h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.settingsPanel label {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.settingsPanel label span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settingsActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.settingsActions button:last-child,
+#addAccessButton {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.accessList {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.accessItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
