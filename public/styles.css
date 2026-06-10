@@ -2220,3 +2220,206 @@ textarea {
   }
 
   .prototypeNav {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+  }
+
+  .prototypeNav button {
+    min-height: 42px;
+    justify-content: center;
+    padding: 8px 4px;
+    gap: 5px;
+    font-size: 12px;
+  }
+
+  .prototypeNav button span {
+    display: none;
+  }
+
+  .prototypeNav button em {
+    display: none;
+  }
+
+  .deckViewport,
+  .listSurface,
+  .dossierView {
+    min-height: auto;
+    padding: 14px;
+  }
+
+  .deckViewport {
+    height: auto;
+    overflow: visible;
+    grid-template-rows: auto;
+    gap: 12px;
+    padding-bottom: 18px;
+  }
+
+  .homeGreeting {
+    width: 100%;
+  }
+
+  .homeGreeting h1 {
+    font-size: 28px;
+  }
+
+  .homeGreeting p {
+    font-size: 22px;
+  }
+
+  .deckHeader,
+  .surfaceHeader,
+  .prospectHeader {
+    align-items: flex-start;
+  }
+
+  .deckHeader {
+    flex-direction: column;
+  }
+
+  .deckHeaderActions,
+  .emptyActions {
+    width: 100%;
+  }
+
+  .deckHeaderActions button,
+  .emptyActions button {
+    flex: 1 1 130px;
+  }
+
+  .viewToggle {
+    width: 100%;
+  }
+
+  .viewToggle button {
+    flex: 1 1 0;
+  }
+
+  .deckStack {
+    width: 100%;
+    height: auto;
+    margin: 10px 0;
+  }
+
+  .stackGhost {
+    display: none;
+  }
+
+  .overviewList,
+  .commandLayer {
+    width: 100%;
+  }
+
+  .overviewList {
+    grid-auto-columns: min(82vw, 280px);
+    grid-template-columns: none;
+    max-height: 320px;
+  }
+
+  .overviewCard {
+    min-height: 250px;
+  }
+
+  .commandBar {
+    border-radius: 18px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .commandPanel {
+    max-height: min(58vh, 420px);
+    border-radius: 18px;
+  }
+
+  .commandBar button {
+    grid-column: 1 / -1;
+  }
+
+  .mentionMenu,
+  .commandConfirm,
+  .commandResult {
+    width: 100%;
+  }
+
+  .prospectCard {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    min-height: auto;
+    padding: 18px;
+    width: 100%;
+  }
+
+  .prospectHeader,
+  .contactRow,
+  .replyCard,
+  .hypothesisPanel,
+  .dossierGrid,
+  .briefBands,
+  .briefColumns,
+  .offeringGrid,
+  .funnelGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .prospectHeader h1 {
+    font-size: 34px;
+  }
+
+  .cueCluster {
+    justify-items: start;
+    grid-template-columns: auto auto;
+    align-items: center;
+  }
+
+  .channelGates,
+  .cardActions {
+    width: 100%;
+  }
+
+  .cardActions {
+    grid-template-columns: 1fr;
+  }
+
+  .channelGates {
+    justify-content: flex-start;
+  }
+
+  .reasonGrid,
+  .emptyStats,
+  .summaryCounts,
+  .settingsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .home {
+    padding-top: 24vh;
+  }
+
+  .homeActions {
+    width: min(100%, 320px);
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .settingsPage {
+    padding: 16px;
+  }
+
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .chatList {
+    max-height: 160px;
+  }
+
+  .chatPane {
+    height: calc(100vh - 238px);
+  }
+}
