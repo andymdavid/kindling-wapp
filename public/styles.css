@@ -722,6 +722,50 @@ button:disabled {
   font-size: 12px;
 }
 
+.commandStatus {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--neutral-fill);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  width: fit-content;
+}
+
+.embeddedCommandMessages {
+  display: grid;
+  gap: 8px;
+}
+
+.embeddedCommandMessage {
+  max-width: min(100%, 680px);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--body);
+  font-size: 13px;
+  line-height: 1.42;
+  white-space: pre-wrap;
+}
+
+.embeddedCommandMessage.user {
+  justify-self: end;
+  max-width: min(92%, 620px);
+  background: var(--neutral-fill);
+}
+
+.embeddedCommandMessage.assistant {
+  justify-self: start;
+}
+
+.embeddedCommandMessage.pending {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .commandBar {
   position: relative;
   z-index: 1;
@@ -862,7 +906,7 @@ button:disabled {
 .prospectCard {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto minmax(0, auto) auto auto;
+  grid-template-rows: auto auto auto auto auto;
   gap: 12px;
   padding: 20px;
   width: min(100%, 470px);
@@ -872,7 +916,7 @@ button:disabled {
   justify-self: center;
   align-self: start;
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: auto;
   z-index: 2;
 }
 
@@ -956,13 +1000,21 @@ button:disabled {
 .whyNow,
 .relationshipLead {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 10px;
-  align-items: start;
   padding: 16px;
   border-radius: 14px;
   background: var(--coral-tint);
   border: 1px solid rgba(184, 70, 31, 0.24);
+}
+
+.whyNow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: start;
+}
+
+.relationshipLead {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
 }
 
 .angleBlock {
@@ -980,16 +1032,13 @@ button:disabled {
   margin: 6px 0 0;
 }
 
-.whyNow p {
+.whyNow p,
+.relationshipLead p {
   grid-column: 1 / -1;
   color: var(--ink);
   font-size: 15px;
   line-height: 1.36;
   font-weight: 500;
-}
-
-.relationshipLead p {
-  grid-column: 1 / -1;
 }
 
 .whyNow p,
@@ -1008,6 +1057,15 @@ button:disabled {
   line-height: 1;
   font-weight: 760;
   white-space: nowrap;
+}
+
+.whyNow > span {
+  grid-column: 1;
+}
+
+.whyNow .sourceLink {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .whyNow .sourceLink {

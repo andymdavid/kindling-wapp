@@ -1,47 +1,56 @@
-# WApp Starter Pack
+# Kindling Frontend Prototype
 
-A demo WApp that logs in with a Nostr browser extension, stores chats in local SQLite, starts a Wingmen pipeline for each user message, and receives the agent answer through a webhook.
+Kindling is a frontend prototype for a salesperson decision feed. It explores the daily deck, prospect card, dossier, reply queue, outreach review, and model-aware command/chat surfaces.
 
-It is also the starter pattern for Business WApps: the WApp owns local UI/data, Autopilot owns pipeline/agent execution, and both sides can talk over NIP-98 APIs.
+This repo is currently a UX experimentation space. The production data loops and agent plumbing are expected to live elsewhere, though this prototype keeps a small local WApp backend from the starter app so the frontend can run and the existing chat route remains available.
 
-Agents that need to build or integrate WApps can install or copy the bundled skill guide: `Wapps-skill.md`.
+## What Is Included
 
-## Flow
+- Deck-first home screen with stateful greeting.
+- Focused prospect card and overview carousel.
+- Contextual dossier, replies, offerings, and pipeline/admin surfaces.
+- Editable email preview with copy and `mailto:` handoff.
+- Bottom command/chat surface with active-card context.
+- Local mock data projected through the documented Kindling data model.
 
-1. Browser signs a login challenge with `window.nostr`.
-2. Messages are stored in `data/chat-wapp.sqlite`.
-3. `POST /api/chats/:chatId/messages` starts the configured default pipeline.
-4. Pipeline input includes `message`, `history`, `chatId`, and `webhook`.
-5. The pipeline agent posts the answer to `POST /api/pipeline-webhook`.
+## Data Model
 
-`CHAT_WAPP_ALLOW_MOCK=1` keeps the demo usable before the Autopilot HTTP trigger route is live. Set it to `0` once Autopilot is restarted with the HTTP trigger update.
+`DataModel.md` describes the intended backend/API contract for owner companies, market profiles, companies, people, sources, matches, outreach drafts, feedback, and activities.
 
-## Local Settings
+The frontend currently uses local seed data and an adapter in `public/app.js` to project that data into card-ready UI state. It does not require a production Kindling API to run.
 
-Signed-in users with edit access can configure these from the sidebar:
+## Run Locally
 
-- Autopilot base URL.
-- Default chat pipeline.
-- Read and edit npub groups.
+Install dependencies:
 
-Settings are stored in the local SQLite database. Until access rules are configured, the app stays in bootstrap mode so the first signed-in user can configure it. After rules exist, users can log in when they have read or edit access. Edit access can also configure settings and access rules. The configured `WAPP_OWNER_NPUB` always has read and edit access.
-
-## NIP-98 APIs
-
-Autopilot pipeline discovery uses the browser NIP-98 signer:
-
-- `POST /api/autopilot/pipelines` returns a NIP-98 signing request when no Autopilot authorization is provided.
-- The browser signs that request and retries the same WApp endpoint.
-- The WApp forwards the signed request to Autopilot `/api/pipelines/definitions`.
-
-Agent-to-WApp API routes:
-
-```txt
-GET   /api/nip98/me
-GET   /api/nip98/chats
-GET   /api/nip98/chats/:chatId/messages
-POST  /api/nip98/chats/:chatId/messages
-PATCH /api/nip98/chats/:chatId
+```sh
+bun install
 ```
 
-Read routes require API read access. Edit routes require API edit access. All NIP-98 requests verify event kind, signature, URL, method, timestamp, and payload hash for mutating methods.
+Start the app:
+
+```sh
+bun run start
+```
+
+For development with reloads:
+
+```sh
+bun run dev
+```
+
+Then open the printed local URL. The main prototype is available via the preview flow or directly at:
+
+```txt
+/act
+```
+
+## Checks
+
+```sh
+bun run check
+```
+
+## Scope Notes
+
+This is not the final production backend. The current implementation is intentionally frontend-heavy and uses mock/model-shaped data to test UX decisions before the real Kindling services are connected.

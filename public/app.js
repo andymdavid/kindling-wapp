@@ -27,6 +27,10 @@ const state = {
   deckViewMode: sessionStorage.getItem("kindling_deck_view_mode") || "focused",
   deckOrder: loadSessionList("kindling_deck_order"),
   sidebarCollapsed: sessionStorage.getItem("kindling_sidebar_collapsed") === "1",
+  commandChatId: localStorage.getItem("kindling_command_chat") || "",
+  commandMessages: [],
+  commandOpen: false,
+  commandStatus: "",
   commandValue: "",
   commandResult: "",
   commandConfirm: null,
@@ -1532,7 +1536,7 @@ function escapeHtml(value) {
 function renderCommandBar() {
   const suggestions = commandSuggestions();
   const hasInput = Boolean(state.commandValue.trim());
-  const isOpen = hasInput || suggestions.length || state.commandResult || state.commandConfirm;
+  const isOpen = state.commandOpen || hasInput || suggestions.length || state.commandStatus || state.commandResult || state.commandConfirm;
   const context = currentUiContext();
   return `
     <section class="commandLayer ${isOpen ? "open" : ""}" aria-label="Command bar">
@@ -1548,6 +1552,16 @@ function renderCommandBar() {
             <strong>${escapeHtml(context.companyName)}</strong>
             <small>${escapeHtml(context.personName)} · ${escapeHtml(context.mode)}</small>
           </section>
+          ${state.commandStatus ? `<p class="commandStatus">${escapeHtml(state.commandStatus)}</p>` : ""}
+          ${state.commandMessages.length ? `
+            <div class="embeddedCommandMessages" aria-label="Agent chat messages">
+              ${state.commandMessages.map((message) => `
+                <div class="embeddedCommandMessage ${message.role} ${message.status}">
+                  ${escapeHtml(displayCommandMessage(message))}
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
           ${suggestions.length ? `
             <div class="mentionMenu">
               ${suggestions.map((entity) => `<button type="button" data-mention="${escapeHtml(entity.label)}"><strong>${escapeHtml(entity.label)}</strong><span>${entity.type}</span></button>`).join("")}
@@ -2094,6 +2108,93 @@ function currentUiContext() {
   };
 }
 
+function commandContextMessage(message) {
+  const context = currentUiContext();
+  const prospect = activeProspect();
+  const active = kindlingAgentTools.activeObjects();
+  return [
+    "Kindling active context:",
+    `- Surface: ${context.surface}`,
+    `- Active company: ${context.companyName} (${context.companyId})`,
+    `- Active person: ${context.personName} (${context.personId})`,
+    `- Active match: ${context.matchId}`,
+    `- Active outreach draft: ${context.outreachDraftId}`,
+    `- Fit score: ${prospect.fitScore}`,
+    `- Warmth: ${prospect.warmth}`,
+    `- Why now: ${prospect.whyNow || "No timing trigger"}`,
+    `- Wedge: ${prospect.angle}`,
+    `- Sources: ${active.sources.map((source) => source.title).join("; ") || "none"}`,
+    "",
+    `User message: ${message}`,
+  ].join("\n");
+}
+
+function displayCommandMessage(message) {
+  if (message.status === "pending") return "Thinking...";
+  if (message.role === "user") {
+    const match = String(message.content || "").match(/User message:\s*([\s\S]*)$/);
+    return match ? match[1].trim() : message.content;
+  }
+  return message.content;
+}
+
+async function ensureCommandChat() {
+  if (state.commandChatId) return state.commandChatId;
+  const payload = await api("/api/chats", { method: "POST", body: "{}" });
+  state.commandChatId = payload.chat.id;
+  localStorage.setItem("kindling_command_chat", state.commandChatId);
+  return state.commandChatId;
+}
+
+async function loadCommandChatMessages() {
+  if (!state.commandChatId || !state.token) return;
+  const payload = await api(`/api/chats/${encodeURIComponent(state.commandChatId)}/messages`);
+  state.commandMessages = payload.messages || [];
+  state.commandOpen = true;
+}
+
+async function sendCommandChatMessage(value) {
+  const chatId = await ensureCommandChat();
+  state.commandStatus = "Sending to agent";
+  state.commandOpen = true;
+  renderActPrototype();
+  const payload = await api(`/api/chats/${encodeURIComponent(chatId)}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content: commandContextMessage(value) }),
+  });
+  state.commandMessages = payload.messages || [];
+  if (payload.requiresAutopilotAuth && payload.triggerRequest) {
+    state.commandStatus = "Authorizing agent";
+    renderActPrototype();
+    const autopilotAuthorization = await signNip98Request(payload.triggerRequest);
+    const started = await api(`/api/pipeline-runs/${encodeURIComponent(payload.runId)}/start`, {
+      method: "POST",
+      body: JSON.stringify({ autopilotAuthorization }),
+    });
+    state.commandMessages = started.messages || [];
+  }
+  state.commandStatus = state.commandMessages.some((message) => message.status === "pending") ? "Agent running" : "";
+  renderActPrototype();
+  refreshCommandChatUntilComplete(0);
+}
+
+function refreshCommandChatUntilComplete(attempt) {
+  if (!state.commandChatId || attempt > 8) return;
+  window.setTimeout(async () => {
+    try {
+      await loadCommandChatMessages();
+      const pending = state.commandMessages.some((message) => message.status === "pending");
+      state.commandStatus = pending ? "Agent running" : "";
+      state.commandOpen = true;
+      renderActPrototype();
+      if (pending) refreshCommandChatUntilComplete(attempt + 1);
+    } catch {
+      state.commandStatus = "";
+      renderActPrototype();
+    }
+  }, 1800);
+}
+
 const kindlingAgentTools = {
   findProspectByText(value) {
     const lower = value.toLowerCase();
@@ -2121,11 +2222,7 @@ const kindlingAgentTools = {
   },
 };
 
-function handleCommandSubmit(event) {
-  event.preventDefault();
-  const input = $("commandInput");
-  const value = input?.value.trim() || "";
-  state.commandValue = value;
+function handleLocalCommand(value) {
   if (!value) {
     state.commandResult = "";
     state.commandConfirm = null;
@@ -2172,6 +2269,35 @@ function handleCommandSubmit(event) {
   }
   savePrototypeState();
   renderActPrototype();
+}
+
+async function handleCommandSubmit(event) {
+  event.preventDefault();
+  const input = $("commandInput");
+  const value = input?.value.trim() || "";
+  state.commandValue = value;
+  state.commandOpen = true;
+  if (!value) {
+    state.commandResult = "";
+    state.commandConfirm = null;
+    state.commandStatus = "";
+    renderActPrototype();
+    return;
+  }
+  if (!state.token || !state.me) {
+    handleLocalCommand(value);
+    return;
+  }
+  state.commandResult = "";
+  state.commandConfirm = null;
+  try {
+    await sendCommandChatMessage(value);
+    state.commandValue = "";
+  } catch (error) {
+    state.commandStatus = "";
+    state.commandResult = `Agent chat unavailable: ${error.message}. Preview fallback can still answer basic deck questions.`;
+    handleLocalCommand(value);
+  }
 }
 
 function bindPrototypeEvents() {
@@ -2249,6 +2375,8 @@ function bindPrototypeEvents() {
     button.addEventListener("click", () => {
       state.commandResult = "";
       state.commandConfirm = null;
+      state.commandStatus = "";
+      state.commandOpen = false;
       state.commandValue = "";
       renderActPrototype();
     });
