@@ -20,7 +20,7 @@ const state = {
   route: window.location.pathname,
   profiles: loadProfileCache(),
   prototypeView: localStorage.getItem("kindling_view") || "deck",
-  activeProspectId: localStorage.getItem("kindling_active_prospect") || "northstar-studio",
+  activeProspectId: localStorage.getItem("kindling_active_prospect") || "evolv3",
   dismissedProspects: loadPrototypeList("kindling_dismissed"),
   snoozedProspects: loadPrototypeList("kindling_snoozed"),
   actedProspects: loadPrototypeList("kindling_acted"),
