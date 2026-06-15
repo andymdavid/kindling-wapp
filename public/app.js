@@ -309,11 +309,11 @@ const $ = (id) => document.getElementById(id);
 function buildPrototypeDataModel(prospects) {
   const now = Date.UTC(2026, 5, 9);
   const ownerCompany = {
-    id: stableUuid("owner-company:adapt-by-design"),
-    name: "Adapt by Design",
-    website: "https://adaptbydesign.example",
+    id: stableUuid("owner-company:kindling"),
+    name: "Kindling",
+    website: "https://kindling.example",
     location: "Perth, WA",
-    summary: "Adapt helps businesses improve workflows with practical AI, automation, training, and implementation support.",
+    summary: "Kindling surfaces matched prospects from source-backed enrichment and helps salespeople review the next best action.",
     createdAt: now,
     updatedAt: now,
   };
@@ -363,13 +363,15 @@ function buildPrototypeDataModel(prospects) {
       location: parseDescriptor(prospect.descriptor).location,
       industry: parseDescriptor(prospect.descriptor).industry,
       website: prospect.evidence.find((item) => item.type === "website")?.url || "",
-      dataRing: prospect.status === "ready" ? "outreach" : prospect.status === "partial" ? "matched" : "enhanced",
-      duplicateStatus: "unique",
+      dataRing: prospect.dataRing || (prospect.status === "ready" ? "outreach" : prospect.status === "partial" ? "matched" : "enhanced"),
+      duplicateStatus: prospect.duplicateStatus || "unique",
       enrichmentStatus: "complete",
-      confidence: prospect.fitScore / 100,
+      confidence: prospect.confidence ?? prospect.fitScore / 100,
       profile: {
-        summary: prospect.gap,
-        description: prospect.descriptor,
+        summary: prospect.companySummary || "",
+        description: prospect.companySummary || "",
+        servicesOffered: prospect.services || [],
+        operatingAreas: prospect.operatingAreas || [],
         size: { employeeCountBucket: parseDescriptor(prospect.descriptor).employeeCountBucket, locationCount: 1, confidence: 0.7 },
         contactPaths,
         primaryPersonIds: [stableUuid(`person:${prospect.id}:${prospect.contact.name}`)],
@@ -377,13 +379,16 @@ function buildPrototypeDataModel(prospects) {
         prototypeSlug: prospect.id,
         displayDescriptor: prospect.descriptor,
         mode: prospect.mode,
-        warmth: prospect.warmth,
         whyNow: prospect.whyNow,
         wedge: prospect.angle,
         history: prospect.history,
         stageCosts: prospect.stageCosts,
+        confidenceNotes: prospect.confidenceNotes || [],
+        fieldsUpdated: prospect.fieldsUpdated || [],
+        gaps: prospect.gaps || [],
         researchBrief: prospect.researchBrief || null,
         marketProfileName: prospect.offering,
+        hasOutreachDraft: prospect.hasOutreachDraft !== false,
       },
       createdAt: now + index,
       updatedAt: now + index,
@@ -450,11 +455,12 @@ function buildPrototypeDataModel(prospects) {
       createdAt: now + index,
     };
   });
-  const outreachDrafts = prospects.map((prospect, index) => {
+  const outreachDrafts = prospects.flatMap((prospect, index) => {
+    if (prospect.hasOutreachDraft === false) return [];
     const company = companies[index];
     const match = matches[index];
     const email = buildOutreachEmail(prospect);
-    return {
+    return [{
       id: stableUuid(`outreach:${prospect.id}:1`),
       companyId: company.id,
       companyMatchId: match.id,
@@ -468,7 +474,7 @@ function buildPrototypeDataModel(prospects) {
       sourceRunId: stableUuid(`run:${prospect.id}:outreach`),
       createdAt: now + index,
       updatedAt: now + index,
-    };
+    }];
   });
   const activities = prospects.flatMap((prospect, prospectIndex) => {
     const company = companies[prospectIndex];
@@ -512,17 +518,23 @@ function projectDeckProspects(model) {
       const draft = draftsByCompany.get(company.id)?.[0] || {};
       const profile = profilesById.get(match.marketProfileId);
       const profileData = company.profile || {};
+      const companySources = sourcesByCompany.get(company.id) || [];
+      const companyActivities = activitiesByCompany.get(company.id) || [];
       return {
         id: profileData.prototypeSlug || company.id,
         company: company.name,
         descriptor: profileData.displayDescriptor || [company.industry, company.location].filter(Boolean).join(" - "),
         offering: profile?.name || profileData.marketProfileName || match.profileKey || "Unassigned offering",
-        warmth: profileData.warmth || "cold",
+        warmth: deriveRelationshipTemperature(person, companySources, companyActivities),
         fitScore: match.score?.overallScore || Math.round(company.confidence * 100),
+        dataRing: company.dataRing,
+        duplicateStatus: company.duplicateStatus,
+        confidence: company.confidence,
         mode: profileData.mode || "signal_led",
         whyNow: profileData.whyNow || "",
         gap: match.reason || profileData.summary || "",
         angle: profileData.wedge || match.score?.nextBestAction || "",
+        substanceSummary: prospectSubstanceSummary(company, match),
         contact: {
           name: person.name || "Unknown contact",
           role: person.role || "Role unknown",
@@ -531,7 +543,7 @@ function projectDeckProspects(model) {
           source: person.notes || "No source recorded",
           confidence: numberToConfidence(person.buyerConfidence || 0),
         },
-        evidence: (sourcesByCompany.get(company.id) || []).map((source) => ({
+        evidence: companySources.map((source) => ({
           label: source.title,
           source: source.summary.split(" - ")[0],
           captured: source.extractedData?.captured || (source.lastCheckedAt ? "Checked" : "Unverified"),
@@ -539,8 +551,8 @@ function projectDeckProspects(model) {
           url: source.url || "",
           type: source.sourceType,
         })),
-        history: profileData.history || (activitiesByCompany.get(company.id) || []).map((activity) => activity.summary),
-        computeTrail: (activitiesByCompany.get(company.id) || []).filter((activity) => activity.actor === "pipeline").map((activity) => activity.summary),
+        history: profileData.history || companyActivities.map((activity) => activity.summary),
+        computeTrail: companyActivities.filter((activity) => activity.actor === "pipeline").map((activity) => activity.summary),
         stageCosts: profileData.stageCosts || [],
         draft: draft.pitchText || "",
         emailSubject: draft.subject || "",
@@ -633,6 +645,16 @@ function normalizeSourceType(type) {
   return map[type] || "manual_note";
 }
 
+function deriveRelationshipTemperature(person = {}, sources = [], activities = []) {
+  const sourceHasWarmPath = sources.some((source) => {
+    const haystack = `${source.sourceType || ""} ${source.title || ""} ${source.summary || ""}`.toLowerCase();
+    return source.sourceType === "event" || /\b(first-party|event|roundtable|newsletter|shared|mutual|attended|prior outreach)\b/.test(haystack);
+  });
+  const activityHasWarmPath = activities.some((activity) => /\b(first-party|event|roundtable|newsletter|shared|mutual|attended|prior outreach)\b/i.test(activity.summary || ""));
+  const relationshipLooksWarm = /\bknown|warm|mutual|referral|prior|event|attendee\b/i.test(`${person.relationship || ""} ${person.notes || ""}`);
+  return sourceHasWarmPath || activityHasWarmPath || relationshipLooksWarm ? "warm" : "cold";
+}
+
 function confidenceToNumber(confidence) {
   if (typeof confidence === "number") return confidence;
   const map = { High: 0.86, Medium: 0.62, Low: 0.34 };
@@ -674,29 +696,14 @@ function buildOutreachEmail(prospect) {
 }
 
 function openerLine(prospect) {
-  if (prospect.id === "stirling-industries") return "saw Stirling posted two operations coordinator roles this week.";
-  if (prospect.id === "northstar-studio") return "noticed Northstar's mobile homepage is still difficult to use on smaller screens.";
-  if (prospect.id === "harbour-health") return "saw Harbour Health is hiring for client intake admin.";
-  if (prospect.id === "adapt-by-design") return "we crossed paths around the Subiaco SME breakfast circuit.";
-  if (prospect.id === "cygnet-west") return "Cygnet West already looks ahead of many agencies on data visibility and client reporting.";
   return prospect.whyNow || prospect.gap || `had a quick thought about ${prospect.company}.`;
 }
 
 function observationLine(prospect) {
-  if (prospect.id === "stirling-industries") return "Both ads mention reporting, routing, and spreadsheet reconciliation. That usually points to repeatable coordination work sitting with the team.";
-  if (prospect.id === "northstar-studio") return "For a premium studio, that kind of friction can quietly work against the first impression.";
-  if (prospect.id === "harbour-health") return "The role and the separate intake forms suggest there may be repeat admin that patients and staff both feel.";
-  if (prospect.id === "adapt-by-design") return "Founder-led advisory firms often hit a point where growth creates more coordination than the team can comfortably hold.";
-  if (prospect.id === "cygnet-west") return "The gap may be turning strong reporting infrastructure into action queues, narrative updates, and accountable follow-through.";
   return prospect.gap;
 }
 
 function wedgeLine(prospect) {
-  if (prospect.id === "stirling-industries") return "We can map which parts could be simplified before new hires inherit the same manual loops.";
-  if (prospect.id === "northstar-studio") return "I can send a short visual audit with the three fixes most likely to make the site feel current.";
-  if (prospect.id === "harbour-health") return "We can look at a contained intake workflow audit tied to the role you are hiring for.";
-  if (prospect.id === "adapt-by-design") return "It may be worth comparing notes on where simple workflow support would help without changing how you work with clients.";
-  if (prospect.id === "cygnet-west") return "Wingman and Flight Deck could sit above existing systems as a practical workflow layer.";
   return prospect.angle;
 }
 
@@ -707,8 +714,6 @@ function credibilityLine(prospect) {
 }
 
 function ctaLine(prospect) {
-  if (prospect.id === "northstar-studio") return "Worth sending the audit over?";
-  if (prospect.id === "adapt-by-design") return "Worth a quick conversation?";
   return "Worth a quick look?";
 }
 
@@ -822,16 +827,16 @@ function stopPolling() {
 
 async function renderRoute() {
   state.route = appRoute();
+  if (!state.token || !state.me) {
+    stopPolling();
+    showOnly("login");
+    return;
+  }
+
   if (state.route === "/" || state.route === "/act") {
     stopPolling();
     showOnly("actPage");
     renderActPrototype();
-    return;
-  }
-
-  if (!state.token || !state.me) {
-    stopPolling();
-    showOnly("login");
     return;
   }
 
@@ -889,6 +894,9 @@ async function bootApp() {
     state.me = await api("/api/me");
     $("npub").textContent = state.me.npub;
     await renderRoute();
+    void resolveCurrentUserProfile().then(() => {
+      if (state.route === "/" || state.route === "/act") renderActPrototype();
+    });
   } catch {
     logout();
   }
@@ -1028,6 +1036,26 @@ async function resolveProfile(rule) {
   state.profiles[rule.pubkey] = normalized;
   saveProfileCache();
   return normalized;
+}
+
+function currentUserPubkey() {
+  return state.me?.pubkey || state.me?.publicKey || state.me?.pub_key || "";
+}
+
+function currentUserProfile() {
+  const pubkey = currentUserPubkey();
+  return pubkey ? cachedProfile(pubkey) : null;
+}
+
+async function resolveCurrentUserProfile() {
+  if (!state.me) return null;
+  let pubkey = currentUserPubkey();
+  if (!pubkey && window.nostr?.getPublicKey) {
+    pubkey = await window.nostr.getPublicKey().catch(() => "");
+    if (pubkey) state.me.pubkey = pubkey;
+  }
+  if (!pubkey) return null;
+  return resolveProfile({ pubkey, npub: state.me.npub || pubkey });
 }
 
 async function fetchNostrProfile(pubkey) {
@@ -1312,6 +1340,24 @@ function deckProgress() {
   return { total, remaining, completed, current: remaining ? completed + 1 : total };
 }
 
+function resetPrototypeDeckState() {
+  state.dismissedProspects = [];
+  state.snoozedProspects = [];
+  state.actedProspects = [];
+  state.prototypeActivity = [];
+  state.deckOrder = [];
+  state.deckViewMode = "focused";
+  state.prototypeModal = null;
+  state.activeProspectId = kindlingData.prospects[0]?.id || "";
+  savePrototypeState();
+}
+
+function applyOneTimeDeckReset() {
+  if (localStorage.getItem(KINDLING_DECK_RESET_KEY) === "1") return;
+  resetPrototypeDeckState();
+  localStorage.setItem(KINDLING_DECK_RESET_KEY, "1");
+}
+
 function greetingState() {
   const progress = deckProgress();
   const openRepliesCount = kindlingData.replies.length;
@@ -1407,8 +1453,9 @@ function recordPrototypeActivity(type, prospect, detail) {
 function renderActPrototype() {
   const page = $("actPage");
   const view = state.prototypeView || "deck";
+  const commandScope = view === "deck" && state.deckViewMode !== "overview" ? "card" : "global";
   page.innerHTML = `
-    <div class="kindlingShell ${state.sidebarCollapsed ? "sidebarClosed" : ""}">
+    <div class="kindlingShell ${state.sidebarCollapsed ? "sidebarClosed" : ""} ${state.commandOpen && state.commandDocked ? "commandDrawerOpen" : ""} ${state.commandOpen && !state.commandDocked ? "commandFloatingOpen" : ""}">
       <aside class="kindlingNav" aria-label="Kindling navigation">
         <div class="brandLockup">
           <div class="brandMark">
@@ -1417,15 +1464,28 @@ function renderActPrototype() {
           </div>
           <button class="sidebarToggle" type="button" data-action="toggle-sidebar" aria-label="${state.sidebarCollapsed ? "Open sidebar" : "Close sidebar"}">${iconSvg(state.sidebarCollapsed ? "panelRightOpen" : "panelLeftClose")}</button>
         </div>
+        <button class="sidebarSearch" type="button" data-action="open-search" title="Search">
+          ${iconSvg("search")}
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
         ${renderPrototypeNav(view)}
+        ${renderSidebarUserPanel()}
       </aside>
       <section class="kindlingMain">
         ${renderPrototypeView(view)}
       </section>
+      ${renderCommandDrawer()}
+      <button class="agentBottomTrigger" type="button" data-action="open-command" data-command-scope="${commandScope}" aria-label="Ask Athena"><img src="/athena-avatar.png" alt="" /><span>Ask Athena</span></button>
     </div>
+    ${state.searchOpen ? renderSearchPalette() : ""}
     ${state.prototypeModal ? renderPrototypeModal() : ""}
   `;
   bindPrototypeEvents();
+  window.requestAnimationFrame(() => {
+    const thread = $("commandThread");
+    if (thread) thread.scrollTop = thread.scrollHeight;
+  });
 }
 
 function renderPrototypeNav(active) {
@@ -1445,17 +1505,64 @@ function renderPrototypeNav(active) {
   </nav>`;
 }
 
+function renderSidebarUserPanel() {
+  const label = currentUserLabel();
+  const detail = currentUserDetail();
+  const picture = currentUserPicture();
+  return `
+    <section class="sidebarUserPanel" aria-label="Logged in user">
+      <div class="sidebarUserAvatar" aria-hidden="true">${picture ? `<img src="${escapeHtml(picture)}" alt="" />` : userInitial(label)}</div>
+      <div class="sidebarUserText">
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(detail)}</span>
+      </div>
+      <button class="btn btn-ghost iconButton sidebarLogout" type="button" data-action="logout" aria-label="Log out" title="Log out">${iconSvg("logOut")}</button>
+    </section>
+  `;
+}
+
+function currentUserLabel() {
+  const profile = currentUserProfile();
+  const fullName = [state.me?.firstName || state.me?.first_name, state.me?.lastName || state.me?.last_name].filter(Boolean).join(" ");
+  const profileFullName = [state.me?.profile?.firstName || state.me?.profile?.first_name, state.me?.profile?.lastName || state.me?.profile?.last_name].filter(Boolean).join(" ");
+  return fullName || profileFullName || profile?.displayName || profile?.name || state.me?.profile?.displayName || state.me?.profile?.display_name || state.me?.profile?.name || state.me?.name || "Nostr user";
+}
+
+function currentUserDetail() {
+  return shortenNpub(state.me?.npub || state.me?.pubkey || "Signed in");
+}
+
+function currentUserPicture() {
+  const profile = currentUserProfile();
+  return profile?.picture || state.me?.profile?.picture || state.me?.profile?.image || state.me?.profile?.avatar || state.me?.picture || state.me?.image || state.me?.avatar || "";
+}
+
+function shortenNpub(value) {
+  const text = String(value || "");
+  if (text.length <= 18) return text;
+  return `${text.slice(0, 10)}...${text.slice(-6)}`;
+}
+
+function userInitial(label) {
+  return String(label || "K").trim().slice(0, 1).toUpperCase() || "K";
+}
+
 function iconSvg(name) {
   const icons = {
     layers: `<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>`,
     inbox: `<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6l3.5-7Z"/>`,
     sliders: `<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/>`,
     workflow: `<rect width="8" height="8" x="3" y="3" rx="2"/><rect width="8" height="8" x="13" y="13" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/>`,
+    search: `<path d="m21 21-4.35-4.35"/><circle cx="11" cy="11" r="7"/>`,
+    maximize2: `<path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="M9 21H3v-6"/><path d="m3 21 7-7"/>`,
+    minimize2: `<path d="M4 14h6v6"/><path d="m10 14-7 7"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/>`,
+    x: `<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
+    logOut: `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`,
     fileText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>`,
     panelLeftClose: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/>`,
     panelRightOpen: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/>`,
   };
-  return `<svg class="navIcon" viewBox="0 0 24 24" aria-hidden="true">${icons[name] || icons.layers}</svg>`;
+  return `<svg class="appIcon navIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.layers}</svg>`;
 }
 
 function renderPrototypeView(view) {
@@ -1495,11 +1602,10 @@ function renderDeckView() {
             <span><strong>${state.dismissedProspects.length}</strong> dismissed</span>
           </div>
           <div class="emptyActions">
-            <button class="primaryAction" type="button" data-action="explore-next-tier">Explore next tier</button>
+            <button class="btn btn-primary primaryAction" type="button" data-action="explore-next-tier">Explore next tier</button>
             <button type="button" data-action="replay-deck">Replay today's deck</button>
           </div>
         </section>
-        ${renderCommandBar()}
       </div>
     `;
   }
@@ -1524,7 +1630,6 @@ function renderDeckView() {
         <div class="stackGhost ghostOne"></div>
         ${renderProspectCard(prospect)}
       </div>
-      ${renderCommandBar()}
     </div>
   `;
 }
@@ -1532,8 +1637,8 @@ function renderDeckView() {
 function renderDeckModeToggle(mode) {
   return `
     <div class="viewToggle" role="group" aria-label="Deck view">
-      <button class="${mode === "focused" ? "active" : ""}" type="button" data-deck-mode="focused">Focused</button>
-      <button class="${mode === "overview" ? "active" : ""}" type="button" data-deck-mode="overview">Overview</button>
+      <button class="btn btn-ghost ${mode === "focused" ? "active" : ""}" type="button" data-deck-mode="focused">Focused</button>
+      <button class="btn btn-ghost ${mode === "overview" ? "active" : ""}" type="button" data-deck-mode="overview">Overview</button>
     </div>
   `;
 }
@@ -1557,14 +1662,14 @@ function renderDeckOverview(prospects, progress) {
       </header>
       <section class="overviewList" aria-label="Today's deck overview">
         ${prospects.map((item, index) => `
-          <article class="overviewCard ${item.id === state.activeProspectId ? "selected" : ""}">
-            <button class="overviewMain" type="button" data-focus-prospect="${item.id}">
+          <article class="card overviewCard ${item.id === state.activeProspectId ? "selected" : ""}">
+            <button class="btn btn-ghost overviewMain" type="button" data-focus-prospect="${item.id}">
               <header>
                 <span>${item.offering}</span>
                 <strong>${item.company}</strong>
               </header>
-              <section class="${item.whyNow ? "" : "relationship"}">
-                <em>${item.whyNow ? "Why now" : "Way in"}</em>
+              <section class="callout ${item.whyNow ? "callout-whynow" : "callout-wayin relationship"}">
+                <em class="section-header">${item.whyNow ? "Why now" : "Way in"}</em>
                 <p>${item.whyNow || item.gap}</p>
               </section>
               <footer>
@@ -1573,11 +1678,10 @@ function renderDeckOverview(prospects, progress) {
                 <small>${item.fitScore} fit</small>
               </footer>
             </button>
-            <button type="button" ${index === 0 ? "disabled" : ""} data-pull-top="${item.id}">Pull to top</button>
+            <button class="btn" type="button" ${index === 0 ? "disabled" : ""} data-pull-top="${item.id}">Pull to top</button>
           </article>
         `).join("")}
       </section>
-      ${renderCommandBar()}
     </div>
   `;
 }
@@ -1590,7 +1694,71 @@ function currentMentionQuery() {
 function commandSuggestions() {
   const query = currentMentionQuery();
   if (query === null) return [];
+  const scoped = commandScopedProspect();
+  if (scoped && query.trim() === scoped.company.toLowerCase()) return [];
   return commandEntities().filter((entity) => entity.label.toLowerCase().includes(query)).slice(0, 6);
+}
+
+function searchResults() {
+  const query = state.searchQuery.trim().toLowerCase();
+  const items = commandEntities();
+  const filtered = query ? items.filter((item) => item.label.toLowerCase().includes(query) || item.type.includes(query)) : items;
+  return filtered.slice(0, 8);
+}
+
+function openSearchPalette() {
+  state.searchOpen = true;
+  state.searchQuery = "";
+  state.searchIndex = 0;
+  renderActPrototype();
+  window.requestAnimationFrame(() => $("searchInput")?.focus());
+}
+
+function closeSearchPalette() {
+  state.searchOpen = false;
+  state.searchQuery = "";
+  state.searchIndex = 0;
+  renderActPrototype();
+}
+
+function jumpToSearchResult(item) {
+  if (!item) return;
+  state.searchOpen = false;
+  state.searchQuery = "";
+  state.searchIndex = 0;
+  if (item.type === "offering") {
+    state.prototypeView = "offerings";
+  } else {
+    state.activeProspectId = item.id;
+    state.prototypeView = "deck";
+    state.deckViewMode = "focused";
+  }
+  savePrototypeState();
+  renderActPrototype();
+}
+
+function renderSearchPalette() {
+  const results = searchResults();
+  const selectedIndex = Math.min(state.searchIndex, Math.max(results.length - 1, 0));
+  return `
+    <div class="searchScrim" role="presentation" data-action="close-search">
+      <section class="searchPalette" role="dialog" aria-modal="true" aria-label="Search">
+        <header>
+          <span class="section-header">Search</span>
+          <kbd>⌘K</kbd>
+        </header>
+        <input id="searchInput" type="text" value="${escapeHtml(state.searchQuery)}" placeholder="Search companies, contacts, or offerings" autocomplete="off" />
+        <div class="searchResults" role="listbox">
+          ${results.length ? results.map((item, index) => `
+            <button class="searchResult ${index === selectedIndex ? "active" : ""}" type="button" data-search-index="${index}" role="option" aria-selected="${index === selectedIndex}">
+              <span>${escapeHtml(item.label)}</span>
+              <small>${escapeHtml(item.type)}</small>
+            </button>
+          `).join("") : `<p>No matches</p>`}
+        </div>
+      </section>
+    </div>
+  `;
 }
 
 function escapeHtml(value) {
@@ -1601,56 +1769,85 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function renderCommandBar() {
+function renderCommandDrawer() {
   const suggestions = commandSuggestions();
-  const hasInput = Boolean(state.commandValue.trim());
-  const isOpen = state.commandOpen || hasInput || suggestions.length || state.commandStatus || state.commandResult || state.commandConfirm;
   const context = currentUiContext();
+  const hasMessages = state.commandMessages.length || state.commandResult || state.commandConfirm || state.commandStatus;
+  const hasPendingMessage = state.commandMessages.some((message) => message.status === "pending");
   return `
-    <section class="commandLayer ${isOpen ? "open" : ""}" aria-label="Command bar">
-      ${isOpen ? `<button class="commandFrost" type="button" data-action="close-command" aria-label="Close command panel"></button>` : ""}
-      ${isOpen ? `
-        <div class="commandPanel" role="dialog" aria-label="Agent chat">
+    <aside class="agentChatLayer ${state.commandOpen ? "open" : ""} ${state.commandDocked ? "docked" : "floating"}" aria-label="Agent chat">
+      ${state.commandOpen ? `
+        <div class="agentLightScrim" data-action="close-command" aria-hidden="true"></div>
+        <div class="commandPanel" role="dialog" aria-label="Agent chat" aria-modal="false">
           <header>
-            <span>Agent chat</span>
-            <button type="button" data-action="close-command">Close</button>
-          </header>
-          <section class="commandContext" aria-label="Default chat context">
-            <span>Working on</span>
-            <strong>${escapeHtml(context.companyName)}</strong>
-            <small>${escapeHtml(context.personName)} · ${escapeHtml(context.mode)}</small>
-          </section>
-          ${state.commandStatus ? `<p class="commandStatus">${escapeHtml(state.commandStatus)}</p>` : ""}
-          ${state.commandMessages.length ? `
-            <div class="embeddedCommandMessages" aria-label="Agent chat messages">
-              ${state.commandMessages.map((message) => `
-                <div class="embeddedCommandMessage ${message.role} ${message.status}">
-                  ${escapeHtml(displayCommandMessage(message))}
-                </div>
-              `).join("")}
+            <div class="agentTitle">
+              <img src="/athena-avatar.png" alt="" />
+              <span class="section-header">Athena</span>
+              <span class="commandScope badge badge-neutral">Scope: <strong>${escapeHtml(context.companyId ? context.companyName : "Workspace")}</strong></span>
             </div>
-          ` : ""}
+            <div class="agentPanelActions">
+              <button class="btn btn-ghost iconButton" type="button" data-action="${state.commandDocked ? "collapse-command" : "dock-command"}" aria-label="${state.commandDocked ? "Collapse chat" : "Expand chat"}" title="${state.commandDocked ? "Collapse chat" : "Expand chat"}">${iconSvg(state.commandDocked ? "minimize2" : "maximize2")}</button>
+              <button class="btn btn-ghost iconButton" type="button" data-action="close-command" aria-label="Close chat" title="Close chat">${iconSvg("x")}</button>
+            </div>
+          </header>
+          <div class="embeddedCommandMessages" id="commandThread" aria-label="Agent chat messages">
+            ${hasMessages ? `
+              ${state.commandMessages.map(renderCommandTurn).join("")}
+              ${state.commandStatus && !hasPendingMessage ? renderCommandTurn({ role: "assistant", status: "pending", content: state.commandStatus }) : ""}
+              ${state.commandResult ? renderCommandTurn({ role: "assistant", status: "complete", content: state.commandResult }) : ""}
+              ${state.commandConfirm ? `
+                <div class="commandTurn agent">
+                  <div class="agentTurnMeta"><img src="/athena-avatar.png" alt="" /><span class="section-header">Athena</span></div>
+                  <div class="agentTurnBody">${escapeHtml(state.commandConfirm)}</div>
+                  <div class="commandConfirm">
+                    <button class="btn btn-primary" type="button" data-action="confirm-command">Confirm</button>
+                    <button class="btn" type="button" data-action="cancel-command">Cancel</button>
+                  </div>
+                </div>
+              ` : ""}
+            ` : renderCommandTurn({ role: "assistant", status: "complete", content: commandOpeningMessage(context) })}
+          </div>
           ${suggestions.length ? `
             <div class="mentionMenu">
-              ${suggestions.map((entity) => `<button type="button" data-mention="${escapeHtml(entity.label)}"><strong>${escapeHtml(entity.label)}</strong><span>${entity.type}</span></button>`).join("")}
+              ${suggestions.map((entity) => `<button class="btn btn-ghost" type="button" data-mention="${escapeHtml(entity.label)}"><strong>${escapeHtml(entity.label)}</strong><span>${entity.type}</span></button>`).join("")}
             </div>
           ` : ""}
-          ${state.commandResult ? `<p class="commandResult">${escapeHtml(state.commandResult)}</p>` : ""}
-          ${state.commandConfirm ? `
-            <div class="commandConfirm">
-              <span>${escapeHtml(state.commandConfirm)}</span>
-              <button type="button" data-action="confirm-command">Confirm</button>
-              <button type="button" data-action="cancel-command">Cancel</button>
+          <form class="commandBar" id="commandBar">
+            <textarea id="commandInput" rows="2" placeholder="Ask Athena. @ to scope" autocomplete="off">${escapeHtml(state.commandValue)}</textarea>
+            <div class="commandTools">
+              <button class="btn btn-primary" type="submit">Send</button>
             </div>
-          ` : ""}
+          </form>
         </div>
       ` : ""}
-      <form class="commandBar" id="commandBar">
-        <span aria-hidden="true">@</span>
-        <input id="commandInput" type="text" value="${escapeHtml(state.commandValue)}" placeholder="Ask or search. Use @ to mention a company, contact, or offering." autocomplete="off" />
-        <button type="submit">Run</button>
-      </form>
-    </section>
+    </aside>
+  `;
+}
+
+function commandOpeningMessage(context) {
+  if (context.companyId) {
+    return "What would you like to work through?";
+  }
+  return "What would you like to look into?";
+}
+
+function renderCommandTurn(message) {
+  const role = message.role === "user" ? "user" : "agent";
+  const body = message.status === "pending"
+    ? `<span class="thinkingDots" aria-label="${escapeHtml(displayCommandMessage(message))}"><i></i><i></i><i></i></span>`
+    : escapeHtml(displayCommandMessage(message));
+  if (role === "user") {
+    return `
+      <div class="commandTurn user">
+        <div class="userTurnBubble">${body}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="commandTurn agent ${message.status === "pending" ? "pending" : ""}">
+      <div class="agentTurnMeta"><img src="/athena-avatar.png" alt="" /><span class="section-header">Athena</span></div>
+      <div class="agentTurnBody">${body}</div>
+    </div>
   `;
 }
 
@@ -1677,66 +1874,153 @@ function renderActivitySummary() {
 function renderProspectCard(prospect) {
   const contact = prospect.contact;
   const primaryAction = renderCardPrimaryAction(prospect);
+  const lead = prospectLeadType(prospect);
+  const summary = cardSubstanceSummary(prospect);
   return `
-    <article class="prospectCard ${prospect.status}">
+    <article class="card prospectCard ${prospect.status} ${lead.type}">
       <header class="prospectHeader">
-        <div>
+        <div class="prospectTitle">
           <h1>${prospect.company}</h1>
-          <span>${prospect.descriptor}</span>
         </div>
         <div class="cueCluster" aria-label="Prospect cues">
-          <span class="warmFlag ${prospect.warmth}">${prospect.warmth}</span>
-          <span class="fitCue">${prospect.fitScore} fit</span>
+          <span class="badge badge-neutral confidenceCue" title="${confidenceTooltip(prospect)}">${formatConfidence(prospect.confidence)}</span>
         </div>
+        <span class="prospectMeta">${prospectMetadata(prospect)}</span>
       </header>
-      <section class="contactRow">
-        <div class="avatar" aria-hidden="true">${contact.name.slice(0, 1)}</div>
-        <div>
-          <strong>${contact.name}</strong>
-          <span>${contact.role}</span>
-        </div>
-        <div class="channelGates" aria-label="Available outreach channels">
-          <span class="${contact.phone ? "available" : "unavailable"}">Call</span>
-          <span class="${contact.email ? "available" : "unavailable"}">Email</span>
-        </div>
-      </section>
-      ${prospect.whyNow ? `
-        <section class="whyNow">
-          <span>Why now</span>
-          <p>${prospect.whyNow}</p>
-          <button class="sourceLink" type="button" data-action="sources">${prospect.evidence.length} sources</button>
+      ${summary ? `
+        <section class="substanceBlock">
+          <span class="section-header">Snapshot</span>
+          <p>${summary}</p>
         </section>
-      ` : `
-        <section class="relationshipLead">
-          <span>Relationship-led</span>
-          <p>No timing trigger found. Lead with fit and reachability.</p>
-        </section>
-      `}
+      ` : ""}
+      ${renderProspectLead(prospect, lead)}
       <section class="angleBlock">
-        <span>Wedge</span>
+        <span class="section-header">Wedge</span>
         <p>${prospect.angle}</p>
       </section>
-      <footer class="cardActions">
-        <button type="button" data-action="dismiss">Dismiss</button>
-        <button type="button" data-action="snooze">Snooze</button>
-        <button class="dossierAction" type="button" data-view="dossier" data-prospect="${prospect.id}">View Dossier</button>
-        ${primaryAction}
-      </footer>
+      <section class="actZone">
+        ${renderProspectContact(prospect)}
+        <footer class="cardActions">
+          <button class="btn btn-ghost" type="button" data-action="dismiss"><span>Dismiss</span><kbd>←</kbd></button>
+          <button class="btn btn-ghost" type="button" data-action="snooze"><span>Snooze</span><kbd>↑</kbd></button>
+          <button class="btn dossierAction" type="button" data-view="dossier" data-prospect="${prospect.id}"><span>View Dossier</span><kbd>→</kbd></button>
+          ${primaryAction}
+        </footer>
+      </section>
     </article>
   `;
 }
 
+function prospectMetadata(prospect) {
+  return String(prospect.descriptor || "")
+    .split(" - ")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatConfidence(confidence) {
+  const value = Number(confidence);
+  if (!Number.isFinite(value)) return "Confidence unknown";
+  return `${Math.round(value * 100)}% confidence`;
+}
+
+function confidenceTooltip(prospect) {
+  return `Company enrichment confidence from DataModel companies.confidence: ${formatConfidence(prospect.confidence)}.`;
+}
+
+function prospectSubstanceSummary(company, match) {
+  const profile = company.profile || {};
+  const candidates = [profile.description, profile.summary, match.reason].filter(Boolean);
+  return candidates.find((value) => value !== match.reason && isSubstantiveSummary(value, company)) || "";
+}
+
+function cardSubstanceSummary(prospect) {
+  return isSubstantiveSummary(prospect.substanceSummary, prospect) ? prospect.substanceSummary : "";
+}
+
+function isSubstantiveSummary(value, record = {}) {
+  const text = String(value || "").trim();
+  if (text.length < 48) return false;
+  const descriptor = String(record.descriptor || record.profile?.displayDescriptor || "").toLowerCase();
+  const normalized = text.toLowerCase();
+  if (descriptor && (normalized === descriptor || descriptor.includes(normalized) || normalized.includes(descriptor))) return false;
+  if (record.gap && normalized === String(record.gap).toLowerCase()) return false;
+  return true;
+}
+
+function renderProspectContact(prospect) {
+  const contact = prospect.contact;
+  return `
+      <section class="contact-row contactRow">
+        <div class="avatar contactPhoto" aria-hidden="true">${contactInitials(contact.name)}</div>
+        <div class="contactIdentity">
+          <strong>${contact.name}</strong>
+          <span>${contact.role}</span>
+        </div>
+        <div class="channelGates" aria-label="Available outreach channels">
+          <button class="btn btn-ghost channelAction ${contact.phone ? "available" : "unavailable"}" type="button" ${contact.phone ? "" : "disabled"}>Call</button>
+          <button class="btn btn-ghost channelAction ${contact.email ? "available" : "unavailable"}" type="button" ${contact.email ? "" : "disabled"}>Email</button>
+        </div>
+      </section>
+  `;
+}
+
+function contactInitials(name) {
+  return String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function renderProspectLead(prospect, lead) {
+  if (lead.type === "realTrigger") {
+    return `
+        <section class="callout callout-whynow whyNow">
+          <span class="section-header">Why now</span>
+          <p>${lead.text}</p>
+          <button class="btn btn-ghost sourceLink" type="button" data-action="sources">${prospect.evidence.length} sources</button>
+        </section>
+    `;
+  }
+  const label = lead.type === "relationshipLed" ? "Gap" : "Fit lead";
+  return `
+        <section class="leadBlock ${lead.type}">
+          <span class="section-header">${label}</span>
+          <p>${lead.text}</p>
+        </section>
+  `;
+}
+
+function prospectLeadType(prospect) {
+  if (prospect.mode === "relationship_led") {
+    return { type: "relationshipLed", text: prospect.gap || "No timing trigger found. Lead through the warm path." };
+  }
+  const whyNow = (prospect.whyNow || "").trim();
+  const isFitLed = !whyNow || /\b(no sharp trigger|fit-led|no timing trigger)\b/i.test(whyNow);
+  if (isFitLed) {
+    return {
+      type: "fitLed",
+      text: whyNow || prospect.gap || "Strong match, but no sharp timing trigger yet.",
+    };
+  }
+  return { type: "realTrigger", text: whyNow };
+}
+
 function renderCardPrimaryAction(prospect) {
   const contact = prospect.contact;
-  if (contact.email) return `<button class="primaryAction" type="button" data-action="email">Review Email</button>`;
-  if (contact.phone) return `<button class="primaryAction" type="button" data-action="call">Call ${contact.name.split(" ")[0]}</button>`;
-  return `<button class="primaryAction" type="button" data-view="dossier" data-prospect="${prospect.id}">Find path</button>`;
+  if (contact.email && prospect.draft) return `<button class="btn btn-primary primaryAction" type="button" data-action="email"><span>Review Email</span><kbd>↵</kbd></button>`;
+  if (contact.phone) return `<button class="btn btn-primary primaryAction" type="button" data-action="call"><span>Call ${contact.name.split(" ")[0]}</span><kbd>↵</kbd></button>`;
+  return `<button class="btn primaryAction unavailablePrimary" type="button" disabled>No channel</button>`;
 }
 
 function renderDossierView(prospect) {
   const primaryAction = prospect.contact.email
-    ? `<button class="primaryAction" type="button" data-action="email">Review Email</button>`
-    : `<button class="primaryAction" type="button" ${prospect.contact.phone ? "" : "disabled"} data-action="call">Call ${prospect.contact.name.split(" ")[0]}</button>`;
+    ? `<button class="btn btn-primary primaryAction" type="button" data-action="email">Review Email</button>`
+    : `<button class="btn btn-primary primaryAction" type="button" ${prospect.contact.phone ? "" : "disabled"} data-action="call">Call ${prospect.contact.name.split(" ")[0]}</button>`;
   const evidenceReady = prospect.evidence.filter((item) => item.confidence === "High").length;
   const totalCost = prospect.stageCosts?.reduce((sum, item) => sum + Number(item.cost.replace("$", "")), 0) || 0;
   return `
@@ -1773,7 +2057,7 @@ function renderDossierView(prospect) {
             <span>Openable in production</span>
           </div>
           ${prospect.evidence.map((item) => `
-            <button class="evidenceRow" type="button" aria-label="Source: ${item.label}">
+            <button class="btn evidence-row evidenceRow" type="button" aria-label="Source: ${item.label}">
               <span class="sourceType">${item.type}</span>
               <strong>${item.label}</strong>
               <span>${item.source} - ${item.captured} - ${item.confidence} confidence</span>
@@ -1948,7 +2232,7 @@ function renderRepliesView() {
               <h2>${thread.contact} - ${thread.company}</h2>
               <p>${thread.gist}</p>
             </div>
-            <button class="primaryAction" type="button" data-action="advance-thread">${thread.nextMove}</button>
+            <button class="btn btn-primary primaryAction" type="button" data-action="advance-thread">${thread.nextMove}</button>
           </article>
         `).join("")}
       </div>
@@ -2032,47 +2316,47 @@ function renderPrototypeModal() {
   if (state.prototypeModal === "dismiss") {
     const reasons = ["Already a client", "Too big", "Bad timing", "Wrong fit"];
     return `
-      <div class="modalScrim">
-        <section class="prototypeModal">
+      <div class="scrim modalScrim">
+        <section class="modal prototypeModal">
           <h2>Why dismiss ${prospect.company}?</h2>
           <p>One tap records a disqualified outcome for the prototype deck.</p>
           <div class="reasonGrid">
-            ${reasons.map((reason, index) => `<button type="button" data-dismiss-reason="${reason}"><kbd>${index + 1}</kbd>${reason}</button>`).join("")}
+            ${reasons.map((reason, index) => `<button class="btn" type="button" data-dismiss-reason="${reason}"><kbd>${index + 1}</kbd>${reason}</button>`).join("")}
           </div>
-          <button type="button" data-action="close-modal">Cancel</button>
+          <button class="btn" type="button" data-action="close-modal">Cancel</button>
         </section>
       </div>
     `;
   }
   if (state.prototypeModal === "snooze") {
     return `
-      <div class="modalScrim">
-        <section class="prototypeModal">
+      <div class="scrim modalScrim">
+        <section class="modal prototypeModal">
           <h2>Snooze ${prospect.company}</h2>
           <p>Choose the wake condition that should bring this prospect back.</p>
           <div class="reasonGrid">
-            ${["30 days", "When signal refreshes", "After next job ad"].map((reason) => `<button type="button" data-snooze-reason="${reason}">${reason}</button>`).join("")}
+            ${["30 days", "When signal refreshes", "After next job ad"].map((reason) => `<button class="btn" type="button" data-snooze-reason="${reason}">${reason}</button>`).join("")}
           </div>
-          <button type="button" data-action="close-modal">Cancel</button>
+          <button class="btn" type="button" data-action="close-modal">Cancel</button>
         </section>
       </div>
     `;
   }
   if (state.prototypeModal === "sources") {
     return `
-      <div class="modalScrim">
-        <section class="prototypeModal sourceReview">
+      <div class="scrim modalScrim">
+        <section class="modal prototypeModal sourceReview">
           <h2>Sources for ${prospect.company}</h2>
           <p>Each claim on the card needs a resolvable source before it should feel outreach ready.</p>
           ${prospect.evidence.map((item) => `
-            <button class="evidenceRow" type="button">
+            <button class="btn evidence-row evidenceRow" type="button">
               <strong>${item.label}</strong>
               <span>${item.source} - ${item.captured} - ${item.confidence}</span>
             </button>
           `).join("")}
           <div class="modalActions">
-            <button type="button" data-action="close-modal">Close</button>
-            <button class="primaryAction" type="button" data-view="dossier" data-prospect="${prospect.id}">Open dossier</button>
+            <button class="btn" type="button" data-action="close-modal">Close</button>
+            <button class="btn btn-primary primaryAction" type="button" data-view="dossier" data-prospect="${prospect.id}">Open dossier</button>
           </div>
         </section>
       </div>
@@ -2080,14 +2364,14 @@ function renderPrototypeModal() {
   }
   const subject = emailSubject(prospect);
   return `
-    <div class="modalScrim">
-      <section class="prototypeModal emailReview">
+    <div class="scrim modalScrim">
+      <section class="modal prototypeModal emailReview">
         <header class="emailReviewHeader">
           <div>
             <span>Email preview</span>
             <h2>${prospect.contact.name}</h2>
           </div>
-          <button type="button" data-action="close-modal" aria-label="Close email preview">Close</button>
+          <button class="btn btn-ghost" type="button" data-action="close-modal" aria-label="Close email preview">Close</button>
         </header>
         <div class="emailMeta">
           <span>To</span>
@@ -2099,8 +2383,8 @@ function renderPrototypeModal() {
           <textarea id="emailBodyInput" rows="8" aria-label="Email body">${escapeHtml(prospect.draft)}</textarea>
         </article>
         <div class="modalActions">
-          <button type="button" data-action="copy-email">Copy</button>
-          <button class="primaryAction" type="button" ${prospect.contact.email ? "" : "disabled"} data-action="open-mail">Open in Mail</button>
+          <button class="btn" type="button" data-action="copy-email">Copy</button>
+          <button class="btn btn-primary primaryAction" type="button" ${prospect.contact.email ? "" : "disabled"} data-action="open-mail">Open in Mail</button>
         </div>
       </section>
     </div>
@@ -2150,8 +2434,24 @@ function pullProspectToTop(prospectId) {
 
 function insertMention(label) {
   state.commandValue = state.commandValue.replace(/@([a-z0-9 .-]*)$/i, `@${label} `);
+  const prospect = kindlingAgentTools.findProspectByText(`@${label}`);
+  if (prospect) state.commandScopedProspectId = prospect.id;
   renderActPrototype();
   focusCommandEnd();
+}
+
+function openCommandDrawer(scope = "card") {
+  const prospect = scope === "card" && state.prototypeView === "deck" ? activeProspect() : null;
+  state.commandOpen = true;
+  state.commandScopedProspectId = prospect?.id || null;
+  state.commandResult = "";
+  state.commandConfirm = null;
+  state.commandStatus = "";
+  if (prospect && !state.commandValue.trim()) state.commandValue = `@${prospect.company} `;
+  if (!prospect) state.commandValue = "";
+  renderActPrototype();
+  focusCommandEnd();
+  if (state.token && state.commandChatId) void loadCommandChatMessages();
 }
 
 function focusCommandEnd() {
@@ -2161,8 +2461,26 @@ function focusCommandEnd() {
   input.setSelectionRange(input.value.length, input.value.length);
 }
 
+function commandScopedProspect() {
+  if (!state.commandScopedProspectId) return null;
+  return kindlingData.prospects.find((prospect) => prospect.id === state.commandScopedProspectId) || null;
+}
+
 function currentUiContext() {
-  const prospect = activeProspect();
+  const prospect = commandScopedProspect() || (!state.commandOpen ? activeProspect() : null);
+  if (!prospect) {
+    return {
+      surface: state.prototypeView,
+      deckViewMode: state.deckViewMode,
+      companyId: "",
+      personId: "",
+      matchId: "",
+      outreachDraftId: "",
+      companyName: "Kindling workspace",
+      personName: "",
+      mode: "search across companies, contacts, offerings, sources, matches, and drafts",
+    };
+  }
   return {
     surface: state.prototypeView,
     deckViewMode: state.deckViewMode,
@@ -2178,23 +2496,29 @@ function currentUiContext() {
 
 function commandContextMessage(message) {
   const context = currentUiContext();
-  const prospect = activeProspect();
+  const prospect = commandScopedProspect();
   const active = kindlingAgentTools.activeObjects();
-  return [
+  const lines = [
     "Kindling active context:",
     `- Surface: ${context.surface}`,
     `- Active company: ${context.companyName} (${context.companyId})`,
     `- Active person: ${context.personName} (${context.personId})`,
     `- Active match: ${context.matchId}`,
     `- Active outreach draft: ${context.outreachDraftId}`,
-    `- Fit score: ${prospect.fitScore}`,
-    `- Warmth: ${prospect.warmth}`,
-    `- Why now: ${prospect.whyNow || "No timing trigger"}`,
-    `- Wedge: ${prospect.angle}`,
-    `- Sources: ${active.sources.map((source) => source.title).join("; ") || "none"}`,
-    "",
-    `User message: ${message}`,
-  ].join("\n");
+  ];
+  if (prospect) {
+    lines.push(
+      `- Fit score: ${prospect.fitScore}`,
+      `- Warmth: ${prospect.warmth}`,
+      `- Why now: ${prospect.whyNow || "No timing trigger"}`,
+      `- Wedge: ${prospect.angle}`,
+      `- Sources: ${active.sources.map((source) => source.title).join("; ") || "none"}`,
+    );
+  } else {
+    lines.push("- No prospect scoped by default. Search/query broadly unless the user mentions an entity.");
+  }
+  lines.push("", `User message: ${message}`);
+  return lines.join("\n");
 }
 
 function displayCommandMessage(message) {
@@ -2204,6 +2528,18 @@ function displayCommandMessage(message) {
     return match ? match[1].trim() : message.content;
   }
   return message.content;
+}
+
+function appendLocalCommandTurn(role, content, status = "complete") {
+  state.commandMessages = [
+    ...state.commandMessages,
+    {
+      id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      role,
+      content,
+      status,
+    },
+  ];
 }
 
 async function ensureCommandChat() {
@@ -2223,7 +2559,8 @@ async function loadCommandChatMessages() {
 
 async function sendCommandChatMessage(value) {
   const chatId = await ensureCommandChat();
-  state.commandStatus = "Sending to agent";
+  appendLocalCommandTurn("user", value, "sending");
+  state.commandStatus = "Thinking";
   state.commandOpen = true;
   renderActPrototype();
   const payload = await api(`/api/chats/${encodeURIComponent(chatId)}/messages`, {
@@ -2232,7 +2569,7 @@ async function sendCommandChatMessage(value) {
   });
   state.commandMessages = payload.messages || [];
   if (payload.requiresAutopilotAuth && payload.triggerRequest) {
-    state.commandStatus = "Authorizing agent";
+    state.commandStatus = "Authorizing";
     renderActPrototype();
     const autopilotAuthorization = await signNip98Request(payload.triggerRequest);
     const started = await api(`/api/pipeline-runs/${encodeURIComponent(payload.runId)}/start`, {
@@ -2271,7 +2608,7 @@ const kindlingAgentTools = {
     return kindlingData.prospects.find((item) => item.id === entity.id) || null;
   },
   activeObjects() {
-    const prospect = activeProspect();
+    const prospect = commandScopedProspect() || activeProspect();
     const refs = prospect.modelRefs || {};
     return {
       prospect,
@@ -2297,6 +2634,7 @@ function handleLocalCommand(value) {
     renderActPrototype();
     return;
   }
+  appendLocalCommandTurn("user", value);
   const lower = value.toLowerCase();
   const mentionedProspect = kindlingAgentTools.findProspectByText(value);
   const sideEffect = /\b(send|snooze|dismiss|bulk|mark|change|move|delete)\b/i.test(value);
@@ -2304,7 +2642,7 @@ function handleLocalCommand(value) {
     state.commandConfirm = `Confirm before running: ${value}`;
     state.commandResult = "";
   } else if (mentionedProspect) {
-    state.activeProspectId = mentionedProspect.id;
+    state.commandScopedProspectId = mentionedProspect.id;
     state.commandResult = `Context set to ${mentionedProspect.company}. I can use its company, person, match, sources, and outreach draft.`;
     state.commandConfirm = null;
   } else if (lower.includes("stress test") && lower.includes("email")) {
@@ -2335,6 +2673,11 @@ function handleLocalCommand(value) {
     state.commandResult = `Using ${context.companyName} as the default context. Broader queries can search companies, people, sources, matches, and drafts.`;
     state.commandConfirm = null;
   }
+  if (state.commandResult) {
+    appendLocalCommandTurn("assistant", state.commandResult);
+    state.commandResult = "";
+  }
+  state.commandValue = "";
   savePrototypeState();
   renderActPrototype();
 }
@@ -2362,6 +2705,7 @@ async function handleCommandSubmit(event) {
     await sendCommandChatMessage(value);
     state.commandValue = "";
   } catch (error) {
+    state.commandMessages = state.commandMessages.filter((message) => message.status !== "sending");
     state.commandStatus = "";
     state.commandResult = `Agent chat unavailable: ${error.message}. Preview fallback can still answer basic deck questions.`;
     handleLocalCommand(value);
@@ -2370,6 +2714,23 @@ async function handleCommandSubmit(event) {
 
 function bindPrototypeEvents() {
   const page = $("actPage");
+  const searchInput = $("searchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      state.searchQuery = searchInput.value;
+      state.searchIndex = 0;
+      renderActPrototype();
+      window.requestAnimationFrame(() => $("searchInput")?.focus());
+    });
+  }
+  for (const button of document.querySelectorAll("[data-search-index]")) {
+    button.addEventListener("click", () => jumpToSearchResult(searchResults()[Number(button.dataset.searchIndex)]));
+  }
+  for (const scrim of document.querySelectorAll(".searchScrim")) {
+    scrim.addEventListener("click", (event) => {
+      if (event.target === scrim) closeSearchPalette();
+    });
+  }
   for (const button of page.querySelectorAll("[data-view]")) {
     button.addEventListener("click", () => {
       state.prototypeModal = null;
@@ -2411,6 +2772,29 @@ function bindPrototypeEvents() {
   for (const button of page.querySelectorAll("[data-mention]")) {
     button.addEventListener("click", () => insertMention(button.dataset.mention));
   }
+  for (const button of page.querySelectorAll("[data-action='open-search']")) {
+    button.addEventListener("click", openSearchPalette);
+  }
+  for (const button of page.querySelectorAll("[data-action='logout']")) {
+    button.addEventListener("click", logout);
+  }
+  for (const button of page.querySelectorAll("[data-action='open-command']")) {
+    button.addEventListener("click", () => openCommandDrawer(button.dataset.commandScope || "global"));
+  }
+  for (const button of page.querySelectorAll("[data-action='dock-command']")) {
+    button.addEventListener("click", () => {
+      state.commandDocked = true;
+      renderActPrototype();
+      focusCommandEnd();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='collapse-command']")) {
+    button.addEventListener("click", () => {
+      state.commandDocked = false;
+      renderActPrototype();
+      focusCommandEnd();
+    });
+  }
   const commandInput = $("commandInput");
   if (commandInput) {
     commandInput.addEventListener("input", () => {
@@ -2445,7 +2829,9 @@ function bindPrototypeEvents() {
       state.commandConfirm = null;
       state.commandStatus = "";
       state.commandOpen = false;
+      state.commandDocked = false;
       state.commandValue = "";
+      state.commandScopedProspectId = null;
       renderActPrototype();
     });
   }
@@ -2538,10 +2924,7 @@ function bindPrototypeEvents() {
   const exploreButton = page.querySelector("[data-action='explore-next-tier']");
   if (exploreButton) {
     exploreButton.addEventListener("click", () => {
-      state.dismissedProspects = [];
-      state.snoozedProspects = [];
-      state.actedProspects = [];
-      state.activeProspectId = kindlingData.prospects[0].id;
+      resetPrototypeDeckState();
       recordPrototypeActivity("Next tier opened", kindlingData.prospects[0], "Prototype reloaded the deck as weaker-tier supply");
       savePrototypeState();
       renderActPrototype();
@@ -2550,10 +2933,7 @@ function bindPrototypeEvents() {
   const replayButton = page.querySelector("[data-action='replay-deck']");
   if (replayButton) {
     replayButton.addEventListener("click", () => {
-      state.dismissedProspects = [];
-      state.snoozedProspects = [];
-      state.actedProspects = [];
-      state.activeProspectId = kindlingData.prospects[0].id;
+      resetPrototypeDeckState();
       recordPrototypeActivity("Deck replayed", kindlingData.prospects[0], "Today reset for review");
       savePrototypeState();
       renderActPrototype();
@@ -2562,19 +2942,52 @@ function bindPrototypeEvents() {
   for (const button of page.querySelectorAll("[data-action='advance-thread']")) {
     button.addEventListener("click", () => {
       state.prototypeModal = "email";
-      state.activeProspectId = "stirling-industries";
+      state.activeProspectId = kindlingData.prospects[0]?.id || "";
       renderActPrototype();
     });
   }
 }
 
 window.addEventListener("keydown", (event) => {
-  if (state.route !== "/" && state.route !== "/act") return;
   const activeTag = document.activeElement?.tagName?.toLowerCase();
   const typing = activeTag === "input" || activeTag === "textarea" || activeTag === "select";
-  if (!state.prototypeModal && state.prototypeView === "deck" && (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"))) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    focusCommandEnd();
+    openSearchPalette();
+    return;
+  }
+  if (state.searchOpen) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSearchPalette();
+      return;
+    }
+    const results = searchResults();
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      state.searchIndex = Math.min(state.searchIndex + 1, Math.max(results.length - 1, 0));
+      renderActPrototype();
+      window.requestAnimationFrame(() => $("searchInput")?.focus());
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      state.searchIndex = Math.max(state.searchIndex - 1, 0);
+      renderActPrototype();
+      window.requestAnimationFrame(() => $("searchInput")?.focus());
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      jumpToSearchResult(results[state.searchIndex]);
+      return;
+    }
+    return;
+  }
+  if (state.route !== "/" && state.route !== "/act") return;
+  if (!state.prototypeModal && state.prototypeView === "deck" && event.key === "/" && !typing) {
+    event.preventDefault();
+    openCommandDrawer("card");
     return;
   }
   if (typing) return;
@@ -2614,7 +3027,12 @@ window.addEventListener("keydown", (event) => {
     state.prototypeModal = "snooze";
     renderActPrototype();
   }
-  if (event.key === "ArrowRight" || event.key === "Enter") {
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    setPrototypeView("dossier");
+    return;
+  }
+  if (event.key === "Enter") {
     event.preventDefault();
     if (activeProspect().contact.email) {
       state.prototypeModal = "email";
@@ -2625,10 +3043,6 @@ window.addEventListener("keydown", (event) => {
       markActed(prospect);
       moveToNextProspect();
     }
-  }
-  if (event.key.toLowerCase() === "d") {
-    event.preventDefault();
-    setPrototypeView("dossier");
   }
 });
 
@@ -2657,6 +3071,8 @@ $("messageInput").addEventListener("keydown", (event) => {
 window.addEventListener("popstate", () => {
   void renderRoute();
 });
+
+applyOneTimeDeckReset();
 
 if (state.token) bootApp();
 else void renderRoute();
