@@ -1,5 +1,6 @@
 const PROFILE_CACHE_KEY = "chat_wapp_profiles_v1";
 const PIPELINES_CACHE_KEY = "chat_wapp_pipelines_v1";
+const KINDLING_DECK_RESET_KEY = "kindling_deck_reset_2026_06_16_supplied_company_deck";
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROFILE_RELAYS = [
   "wss://relay.damus.io",
