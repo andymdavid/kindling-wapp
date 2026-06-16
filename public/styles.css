@@ -2425,8 +2425,8 @@ h4 {
   place-items: center;
   border-radius: 50%;
   background: var(--ink);
-  color: white;
-  font-weight: 800;
+  color: var(--accent-fg);
+  font-weight: var(--weight-semibold);
 }
 
 .opportunityItem strong {
@@ -2447,7 +2447,7 @@ h4 {
   white-space: nowrap;
   text-align: left;
   box-shadow: none;
-  color: var(--neutral-fill-text);
+  color: var(--body);
   border-radius: 8px;
 }
 
@@ -2468,17 +2468,17 @@ h4 {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .replyTime.warning {
-  background: #f4dfbc;
-  color: #60400b;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .replyTime.danger {
-  background: #eadbd7;
-  color: #79301a;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .offeringGrid {
@@ -2501,7 +2501,7 @@ h4 {
   display: grid;
   place-items: center;
   padding: 18px;
-  background: rgba(243, 244, 246, 0.62);
+  background: var(--scrim);
   backdrop-filter: blur(14px) saturate(0.92);
   z-index: 20;
 }
@@ -2511,16 +2511,16 @@ h4 {
   display: grid;
   gap: 16px;
   padding: 22px;
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: 0 16px 34px rgba(33, 36, 43, 0.22), 0 3px 10px rgba(33, 36, 43, 0.12);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-overlay);
+  box-shadow: var(--elev-3);
 }
 
 .emailReview {
   width: min(100%, 620px);
   gap: 12px;
   padding: 18px;
-  background: var(--panel-soft);
+  background: var(--surface-soft);
 }
 
 .emailReviewHeader {
@@ -2539,7 +2539,7 @@ h4 {
 .emailMeta span {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .emailReviewHeader h2 {
@@ -2560,7 +2560,7 @@ h4 {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
+  background: var(--surface);
 }
 
 .emailMeta strong,
@@ -2571,7 +2571,7 @@ h4 {
   white-space: nowrap;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
 }
 
 .emailMeta input {
@@ -2592,8 +2592,8 @@ h4 {
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
-  box-shadow: 0 10px 28px rgba(28,32,40,0.07);
+  background: var(--surface);
+  box-shadow: var(--elev-2);
 }
 
 .emailPaper textarea {
@@ -2651,15 +2651,17 @@ h4 {
 }
 
 kbd {
-  min-width: 24px;
-  height: 24px;
+  min-width: var(--space-8);
+  height: var(--space-8);
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--neutral-fill);
+  border-radius: var(--radius-sm);
+  background: var(--fill-subtle);
   color: var(--muted);
-  font: 700 12px/1 ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-xs);
+  line-height: 1;
+  font-weight: var(--weight-semibold);
 }
 
 .settingsPage {
@@ -2700,7 +2702,7 @@ kbd {
 
 .sidebar {
   border-right: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--surface);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -2733,7 +2735,7 @@ kbd {
   width: 100%;
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: var(--accent-fg);
 }
 
 input,
@@ -2742,7 +2744,7 @@ select {
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 11px 12px;
-  background: var(--panel);
+  background: var(--surface);
   color: var(--ink);
   outline: none;
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
@@ -2752,20 +2754,20 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(28,32,40,0.08);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .settingsPanel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface);
   padding: 20px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--elev-2);
 }
 
 .settingsPanel summary {
   cursor: pointer;
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
 }
 
 .settingsPanel h2 {
@@ -2796,7 +2798,7 @@ textarea:focus {
 #addAccessButton {
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: var(--accent-fg);
 }
 
 .accessList {
@@ -2814,7 +2816,7 @@ textarea:focus {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel-soft);
+  background: var(--surface-soft);
 }
 
 .accessIdentity {
@@ -2832,9 +2834,9 @@ textarea:focus {
   place-items: center;
   overflow: hidden;
   border-radius: 50%;
-  background: var(--neutral-fill);
+  background: var(--fill-subtle);
   color: var(--accent);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 .accessAvatar img {
@@ -2880,7 +2882,7 @@ textarea:focus {
 }
 
 .chatItem.active {
-  background: var(--panel);
+  background: var(--surface);
   border-color: var(--accent);
 }
 
@@ -2906,7 +2908,7 @@ textarea:focus {
 .chatHeader {
   height: 70px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--surface);
   padding: 14px 20px;
   display: flex;
   align-items: center;
@@ -2942,13 +2944,13 @@ textarea:focus {
   padding: 13px 15px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel);
+  background: var(--surface);
   white-space: pre-wrap;
 }
 
 .message.user {
   align-self: flex-end;
-  background: var(--panel-soft);
+  background: var(--surface-soft);
   border-color: var(--line-strong);
 }
 
@@ -2957,18 +2959,18 @@ textarea:focus {
 }
 
 .message.pending {
-  color: var(--pending);
+  color: var(--warning);
   font-style: italic;
 }
 
 .message.error {
-  color: #9b2d1f;
+  color: var(--danger);
   border-color: var(--line-strong);
 }
 
 .composer {
   border-top: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
   padding: 14px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2989,21 +2991,23 @@ textarea {
   min-width: 82px;
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: var(--accent-fg);
 }
 
 @media (max-width: 760px) {
   .kindlingShell,
-  .kindlingShell.sidebarClosed {
+  .kindlingShell.sidebarClosed,
+  .kindlingShell.commandDrawerOpen,
+  .kindlingShell.sidebarClosed.commandDrawerOpen {
     grid-template-columns: 1fr;
   }
 
   .kindlingNav {
     min-height: auto;
     border-right: 0;
-    border-bottom: 1px solid rgba(33, 36, 43, 0.05);
+    border-bottom: 1px solid var(--line);
     padding: 12px 0;
-    box-shadow: 0 8px 22px rgba(28,32,40,0.06);
+    box-shadow: var(--elev-2);
   }
 
   .brandLockup {
@@ -3087,6 +3091,10 @@ textarea {
   }
 
   .deckStack {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
     width: 100%;
     height: auto;
     margin: 10px 0;
@@ -3096,8 +3104,7 @@ textarea {
     display: none;
   }
 
-  .overviewList,
-  .commandLayer {
+  .overviewList {
     width: 100%;
   }
 
@@ -3111,18 +3118,31 @@ textarea {
     min-height: 250px;
   }
 
-  .commandBar {
-    border-radius: 18px;
-    grid-template-columns: auto minmax(0, 1fr);
+  .agentBottomTrigger {
+    right: 14px;
+    bottom: 18px;
+  }
+
+  .agentChatLayer.open,
+  .agentChatLayer.floating,
+  .agentChatLayer.docked {
+    position: fixed;
+    inset: 0;
+    display: block;
+    border-left: 0;
+    z-index: 30;
   }
 
   .commandPanel {
-    max-height: min(58vh, 420px);
-    border-radius: 18px;
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: 100dvh;
+    border-radius: 0;
   }
 
-  .commandBar button {
-    grid-column: 1 / -1;
+  .commandBar {
+    border-radius: var(--radius-lg);
   }
 
   .mentionMenu,
