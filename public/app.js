@@ -1561,6 +1561,9 @@ function iconSvg(name) {
     x: `<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
     logOut: `<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`,
     fileText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>`,
+    mail: `<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a2 2 0 0 1-2.06 0L2 7"/>`,
+    phone: `<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.91.33 1.8.62 2.65a2 2 0 0 1-.45 2.11L8.09 9.67a16 16 0 0 0 6.24 6.24l1.19-1.19a2 2 0 0 1 2.11-.45c.85.29 1.74.5 2.65.62A2 2 0 0 1 22 16.92Z"/>`,
+    arrowLeft: `<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>`,
     panelLeftClose: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/>`,
     panelRightOpen: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/>`,
   };
@@ -2019,124 +2022,308 @@ function prospectLeadType(prospect) {
 
 function renderCardPrimaryAction(prospect) {
   const contact = prospect.contact;
-  if (contact.email && prospect.draft) return `<button class="btn btn-primary primaryAction" type="button" data-action="email"><span>Review Email</span><kbd>↵</kbd></button>`;
+  if (contact.email) return `<button class="btn btn-primary primaryAction" type="button" data-action="email"><span>Review Email</span><kbd>↵</kbd></button>`;
   if (contact.phone) return `<button class="btn btn-primary primaryAction" type="button" data-action="call"><span>Call ${contact.name.split(" ")[0]}</span><kbd>↵</kbd></button>`;
   return `<button class="btn primaryAction unavailablePrimary" type="button" disabled>No channel</button>`;
 }
 
 function renderDossierView(prospect) {
-  const primaryAction = prospect.contact.email
-    ? `<button class="btn btn-primary primaryAction" type="button" data-action="email">Review Email</button>`
-    : `<button class="btn btn-primary primaryAction" type="button" ${prospect.contact.phone ? "" : "disabled"} data-action="call">Call ${prospect.contact.name.split(" ")[0]}</button>`;
+  const { company, match, sources, people, activities } = dossierObjects(prospect);
+  const profile = company?.profile || {};
+  const services = profile.servicesOffered || [];
+  const operatingAreas = profile.operatingAreas || [];
+  const sizeLabel = profile.size?.employeeCountBucket || "Unknown";
+  const gaps = profile.gaps || prospect.gaps || [];
+  const confidenceNotes = profile.confidenceNotes || prospect.confidenceNotes || [];
+  const risks = match?.score?.risks || [];
+  const caveats = profileCaveats(company, gaps, confidenceNotes, risks);
   const evidenceReady = prospect.evidence.filter((item) => item.confidence === "High").length;
-  const totalCost = prospect.stageCosts?.reduce((sum, item) => sum + Number(item.cost.replace("$", "")), 0) || 0;
   return `
     <article class="dossierView">
-      <header class="surfaceHeader">
-        <div>
-          <p>Dossier</p>
-          <h1>${prospect.company}</h1>
-          <span>${prospect.descriptor}</span>
-        </div>
-        <div class="dossierHeaderActions">
-          <button type="button" data-view="deck">Back to deck</button>
-          ${primaryAction}
-        </div>
+      <header class="dossierTopbar">
+        <button class="btn btn-dark dossierBack" type="button" data-view="deck">${iconSvg("arrowLeft")} Back to deck</button>
+        <button class="btn btn-primary primaryAction" type="button" ${prospect.contact.email ? "" : "disabled"} data-action="email">Compose Email</button>
       </header>
-      <section class="hypothesisPanel">
-        <div class="hypothesisMain">
-          <span>Hypothesis</span>
-          <h2>${prospect.gap}</h2>
-          <p>${prospect.angle}</p>
-          ${prospect.whyNow ? `<p class="whyNowInline"><strong>Why now:</strong> ${prospect.whyNow}</p>` : `<p class="whyNowInline relationship"><strong>Relationship-led:</strong> No honest timing trigger found. Verify reachability before acting.</p>`}
-        </div>
-        <div class="verificationRail">
-          <span class="statePill">${prospect.status === "ready" ? "Verified" : prospect.status === "partial" ? "Partial" : "Thin signal"}</span>
-          <p><strong>${evidenceReady}/${prospect.evidence.length}</strong> high-confidence sources</p>
-          <p><strong>${prospect.contact.email || prospect.contact.phone ? "Reachable" : "Blocked"}</strong> contact path</p>
-          <p><strong>${totalCost.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong> prototype compute spend</p>
-        </div>
-      </section>
-      <section class="dossierGrid">
-        <div class="detailPanel evidencePanel">
-          <div class="panelTitle">
-            <h2>Evidence and sources</h2>
-            <span>Openable in production</span>
-          </div>
-          ${prospect.evidence.map((item) => `
-            <button class="btn evidence-row evidenceRow" type="button" aria-label="Source: ${item.label}">
-              <span class="sourceType">${item.type}</span>
-              <strong>${item.label}</strong>
-              <span>${item.source} - ${item.captured} - ${item.confidence} confidence</span>
-              <em>${item.url}</em>
-            </button>
-          `).join("")}
-        </div>
-        <div class="detailPanel contactPanel">
-          <div class="panelTitle">
-            <h2>Path</h2>
-            <span>${prospect.contact.confidence} confidence</span>
-          </div>
-          <div class="contactIdentity">
-            <div class="avatar" aria-hidden="true">${prospect.contact.name.slice(0, 1)}</div>
-            <div>
-              <strong>${prospect.contact.name}</strong>
-              <span>${prospect.contact.role}</span>
-            </div>
-          </div>
-          <p class="quietLine">${prospect.contact.source}</p>
-          <div class="channelGates dossierChannels">
-            <span class="${prospect.contact.phone ? "available" : "unavailable"}">Call ${prospect.contact.phone || "missing"}</span>
-            <span class="${prospect.contact.email ? "available" : "unavailable"}">Email ${prospect.contact.email || "missing"}</span>
-          </div>
-        </div>
-        <div class="detailPanel">
-          <div class="panelTitle">
-            <h2>History</h2>
-            <span>Airspace memory</span>
-          </div>
-          ${prospect.history.map((item) => `<p class="quietLine">${item}</p>`).join("")}
-        </div>
-        <div class="detailPanel computePanel">
-          <div class="panelTitle">
-            <h2>Compute trail</h2>
-            <span>Why it reached the deck</span>
-          </div>
-          ${prospect.stageCosts.map((item, index) => `
-            <div class="computeStep">
-              <span>${index}</span>
+
+      <section class="dossierLayout">
+        <main class="dossierNarrative">
+          <section class="dossierOverview">
+            <div class="profileIdentity">
+              <div class="profileMark" aria-hidden="true">${contactInitials(prospect.company)}</div>
               <div>
-                <strong>${item.stage}</strong>
-                <p>${item.outcome}</p>
+                <h1>${prospect.company}</h1>
+                <p class="dossierDescriptor">${prospectMetadata(prospect)}</p>
               </div>
-              <em>${item.cost}</em>
             </div>
-          `).join("")}
-        </div>
-        <div class="detailPanel draftPanel">
-          <div class="panelTitle">
-            <h2>Draft opener</h2>
-            <span>Human review required</span>
-          </div>
-          <p>${prospect.draft}</p>
-          ${primaryAction}
-        </div>
-        <div class="detailPanel profilePanel">
-          <div class="panelTitle">
-            <h2>Profile fields</h2>
-            <span>Demoted editing surface</span>
-          </div>
-          <dl>
-            <div><dt>Offering</dt><dd>${prospect.offering}</dd></div>
-            <div><dt>Mode</dt><dd>${prospect.mode.replace("_", "-")}</dd></div>
-            <div><dt>Warmth</dt><dd>${prospect.warmth}</dd></div>
-            <div><dt>Fit score</dt><dd>${prospect.fitScore}</dd></div>
-          </dl>
-        </div>
+            <p class="profileLead">${cardSubstanceSummary(prospect) || prospect.gap}</p>
+            <div class="profileFactGrid">
+              ${profileFact("Industry", prospect.industry || company?.industry || "Unknown")}
+              ${profileFact("Location", prospect.location || company?.location || "Unknown")}
+              ${profileFact("Size", sizeLabel)}
+            </div>
+            ${services.length ? `
+              <div class="profileSubsection">
+                <span class="section-header">Services</span>
+                <div class="serviceChips">${services.slice(0, 8).map((service) => `<span>${service}</span>`).join("")}</div>
+              </div>
+            ` : ""}
+            ${operatingAreas.length ? `
+              <div class="profileSubsection">
+                <span class="section-header">Footprint</span>
+                <p>${operatingAreas.join(" · ")}</p>
+              </div>
+            ` : ""}
+          </section>
+
+          <section class="dossierSection reasoningSection">
+            <span class="section-header">Opportunity</span>
+            <div class="opportunityProfile">
+              <p class="opportunityLead">${prospect.angle}</p>
+              <div class="opportunitySignals">
+                ${opportunitySignal("Fit rationale", match?.reason || prospect.gap)}
+                ${match?.score?.matchedServices?.[0]?.reason ? opportunitySignal("Matched service", match.score.matchedServices[0].reason) : ""}
+                ${prospect.whyNow ? opportunitySignal("Timing", prospect.whyNow) : ""}
+              </div>
+              <div class="opportunityChips">
+                ${opportunityDriverChips(prospect, match).join("")}
+              </div>
+            </div>
+          </section>
+
+          ${renderRecentActivitySection(activities)}
+
+        </main>
+
+        <aside class="dossierRail" aria-label="Dossier reference">
+          <section class="card railCard reachCard">
+            <span class="section-header">Reach</span>
+            <dl>
+              <div class="kv-row"><dt>Contact</dt><dd>${prospect.contact.name}</dd></div>
+              <div class="kv-row"><dt>Role</dt><dd>${prospect.contact.role}</dd></div>
+              <div class="kv-row"><dt>Phone</dt><dd>${prospect.contact.phone || "Not found"}</dd></div>
+              <div class="kv-row"><dt>Email</dt><dd>${prospect.contact.email || "Not found"}</dd></div>
+              <div class="kv-row"><dt>Website</dt><dd>${company?.website ? `<a href="${escapeHtml(company.website)}" target="_blank" rel="noreferrer">${escapeHtml(company.website)}</a>` : "Not found"}</dd></div>
+              <div class="kv-row"><dt>Contact page</dt><dd>${prospect.contact.contactUrl ? `<a href="${escapeHtml(prospect.contact.contactUrl)}" target="_blank" rel="noreferrer">Open contact page</a>` : "Not found"}</dd></div>
+            </dl>
+          </section>
+
+          ${renderPeopleRailCard(prospect, people)}
+
+          <section class="card railCard">
+            <span class="section-header">Status</span>
+            <div class="statusCues">
+              <div class="statusCue">
+                <span>Fit</span>
+                <strong class="badge ${fitBadgeClass(prospect.fitScore)}">${fitTier(prospect.fitScore)}</strong>
+              </div>
+              <div class="statusCue">
+                <span>Profile confidence</span>
+                ${confidencePill(prospect.confidence)}
+              </div>
+              <div class="statusCue">
+                <span>Profile depth</span>
+                ${profileDepthIndicator(prospect)}
+              </div>
+            </div>
+          </section>
+
+          ${renderCaveatsRailCard(caveats)}
+
+          <details class="card railCard proofCard">
+            <summary>
+              <span class="section-header">Proof</span>
+              <strong>Verified · ${sources.length || prospect.evidence.length} sources</strong>
+              <small>${evidenceReady}/${prospect.evidence.length} high-confidence card sources</small>
+            </summary>
+            <div class="sourceList">
+              ${prospect.evidence.map((item) => `
+                <a class="evidence-row" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">
+                  <strong>${item.label}</strong>
+                  <span>${item.source} · ${item.captured} · ${item.confidence}</span>
+                </a>
+              `).join("")}
+            </div>
+          </details>
+        </aside>
       </section>
-      ${prospect.researchBrief ? renderResearchBrief(prospect.researchBrief) : ""}
     </article>
   `;
+}
+
+function dossierObjects(prospect) {
+  const refs = prospect.modelRefs || {};
+  const company = kindlingModel.companies.find((item) => item.id === refs.companyId);
+  return {
+    company,
+    match: kindlingModel.matches.find((item) => item.id === refs.matchId),
+    sources: kindlingModel.sources.filter((item) => item.companyId === refs.companyId),
+    people: kindlingModel.people.filter((item) => item.companyId === company?.id),
+    activities: kindlingModel.activities.filter((item) => item.targetId === company?.id),
+  };
+}
+
+function fitTier(score = 0) {
+  if (score >= 85) return "Strong";
+  if (score >= 70) return "Medium";
+  return "Light";
+}
+
+function statusLabel(status = "") {
+  if (status === "ready") return "Ready";
+  if (status === "partial") return "Needs review";
+  if (status === "degraded") return "Thin";
+  return status || "Unknown";
+}
+
+function fitBadgeClass(score = 0) {
+  if (score >= 85) return "badge-success";
+  if (score >= 70) return "badge-info";
+  return "badge-warning";
+}
+
+function confidenceTier(confidence = 0) {
+  const value = Number.isFinite(Number(confidence)) ? Number(confidence) : 0;
+  if (value >= 0.9) return "High";
+  if (value >= 0.7) return "Medium";
+  return "Low";
+}
+
+function confidenceBadgeClass(confidence = 0) {
+  const value = Number.isFinite(Number(confidence)) ? Number(confidence) : 0;
+  if (value >= 0.9) return "badge-success";
+  if (value >= 0.7) return "badge-info";
+  return "badge-warning";
+}
+
+function confidencePill(confidence = 0) {
+  const value = Number.isFinite(Number(confidence)) ? Number(confidence) : 0;
+  return `<strong class="badge ${confidenceBadgeClass(value)}" title="${formatConfidence(value)}">${confidenceTier(value)}</strong>`;
+}
+
+function profileDepthIndicator(prospect) {
+  const level = prospect.status === "ready" ? 3 : prospect.status === "partial" ? 2 : 1;
+  const label = level === 3 ? "Complete" : level === 2 ? "Developing" : "Thin";
+  return `
+    <div class="depthIndicator" aria-label="Profile depth: ${label}">
+      <span class="${level >= 1 ? "active" : ""}"></span>
+      <span class="${level >= 2 ? "active" : ""}"></span>
+      <span class="${level >= 3 ? "active" : ""}"></span>
+      <strong>${label}</strong>
+    </div>
+  `;
+}
+
+function opportunitySignal(label, value) {
+  return `
+    <div class="opportunitySignal">
+      <strong>${label}</strong>
+      <p>${value}</p>
+    </div>
+  `;
+}
+
+function opportunityDriverChips(prospect, match) {
+  const drivers = match?.score?.drivers || {};
+  const chips = [
+    { label: `Match ${fitTier(prospect.fitScore)}`, value: prospect.fitScore },
+    drivers.serviceFit ? { label: "Service fit", value: Math.round(drivers.serviceFit * 100) } : null,
+    drivers.timing ? { label: "Timing", value: Math.round(drivers.timing * 100) } : null,
+    drivers.reachability ? { label: "Reach path", value: Math.round(drivers.reachability * 100) } : null,
+    drivers.evidenceQuality ? { label: "Evidence", value: Math.round(drivers.evidenceQuality * 100) } : null,
+  ].filter(Boolean);
+  return chips.map((chip) => `<span>${chip.label}${typeof chip.value === "number" ? ` · ${chip.value}` : ""}</span>`);
+}
+
+function profileFact(label, value) {
+  return `
+    <div class="profileFact">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `;
+}
+
+function renderPeopleRailCard(prospect, people = []) {
+  const namedPeople = people.filter((person) => !/team|public contact path/i.test(`${person.name} ${person.role}`));
+  if (!namedPeople.length) {
+    return `
+      <section class="card railCard peopleRailCard">
+        <span class="section-header">People</span>
+        <p class="emptyPeople">No named individuals captured yet - general contact only.</p>
+      </section>
+    `;
+  }
+  return `
+    <section class="card railCard peopleRailCard">
+      <span class="section-header">People</span>
+      <div class="peopleList">
+        ${namedPeople.map((person) => `
+          <article class="personRow">
+            <div class="avatar" aria-hidden="true">${contactInitials(person.name)}</div>
+            <div class="personIdentity">
+              <strong>${person.name}</strong>
+              <span>${person.role}</span>
+              <p>${person.notes || "Named contact captured from public source."}</p>
+            </div>
+            <div class="personReach">
+              <button class="btn btn-ghost" type="button" ${prospect.contact.email ? "" : "disabled"} data-action="email" aria-label="Email ${person.name}">${iconSvg("mail")}</button>
+              <button class="btn btn-ghost" type="button" ${prospect.contact.phone ? "" : "disabled"} data-action="call" aria-label="Call ${person.name}">${iconSvg("phone")}</button>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function profileCaveats(company, gaps = [], confidenceNotes = [], risks = []) {
+  const caveats = [...risks, ...gaps, ...confidenceNotes];
+  if (company?.duplicateStatus === "possible_duplicate") caveats.unshift("Possible duplicate record; verify before outreach.");
+  if (company?.duplicateStatus === "duplicate") caveats.unshift("Duplicate record; do not outreach until resolved.");
+  if (company?.enrichmentStatus && company.enrichmentStatus !== "complete") caveats.unshift(`Profile enrichment is ${company.enrichmentStatus}.`);
+  if (company?.dataRing === "parked") caveats.unshift("This company is parked and not currently useful for outreach.");
+  return caveats.slice(0, 4);
+}
+
+function renderCaveatsRailCard(caveats = []) {
+  return `
+    <section class="card railCard caveatsRailCard">
+      <span class="section-header">Caveats</span>
+      ${caveats.length ? `<ul>${caveats.map((item) => `<li>${item}</li>`).join("")}</ul>` : `<p>No major public-data gaps recorded.</p>`}
+    </section>
+  `;
+}
+
+function renderRecentActivitySection(activities = []) {
+  const visible = activities
+    .filter((activity) => ["outreach_drafted", "manual_note_added", "person_found", "company_updated", "company_enhanced"].includes(activity.actionType))
+    .slice(-4)
+    .reverse();
+  if (!visible.length) return "";
+  return `
+    <section class="dossierSection activityFeedSection">
+      <span class="section-header">Recent activity</span>
+      <div class="activityFeed">
+        ${visible.map((activity) => `
+          <article class="activityFeedItem">
+            <span>${activityLabel(activity.actionType)}</span>
+            <p>${activity.summary}</p>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function activityLabel(actionType = "") {
+  const labels = {
+    outreach_drafted: "Draft",
+    manual_note_added: "Note",
+    person_found: "Person",
+    company_updated: "Updated",
+    company_enhanced: "Enhanced",
+  };
+  return labels[actionType] || "Activity";
 }
 
 function renderResearchBrief(brief) {
