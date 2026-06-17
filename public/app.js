@@ -356,6 +356,7 @@ function buildPrototypeDataModel(prospects) {
     const contactPaths = [
       prospect.contact.email ? { type: "email", value: prospect.contact.email, confidence: confidenceToNumber(prospect.contact.confidence) } : null,
       prospect.contact.phone ? { type: "phone", value: prospect.contact.phone, confidence: confidenceToNumber(prospect.contact.confidence) } : null,
+      prospect.contact.contactUrl ? { type: "website_contact_form", value: prospect.contact.contactUrl, confidence: confidenceToNumber(prospect.contact.confidence) } : null,
     ].filter(Boolean);
     return {
       id: stableUuid(`company:${prospect.id}`),
@@ -540,6 +541,7 @@ function projectDeckProspects(model) {
           role: person.role || "Role unknown",
           email: company.profile?.contactPaths?.find((path) => path.type === "email")?.value || "",
           phone: company.profile?.contactPaths?.find((path) => path.type === "phone")?.value || "",
+          contactUrl: company.profile?.contactPaths?.find((path) => path.type === "website_contact_form")?.value || "",
           source: person.notes || "No source recorded",
           confidence: numberToConfidence(person.buyerConfidence || 0),
         },
@@ -2368,6 +2370,7 @@ function renderPrototypeModal() {
     `;
   }
   const subject = emailSubject(prospect);
+  const body = draftBody(prospect);
   return `
     <div class="scrim modalScrim">
       <section class="modal prototypeModal emailReview">
@@ -2385,7 +2388,7 @@ function renderPrototypeModal() {
           <input id="emailSubjectInput" type="text" value="${escapeHtml(subject)}" aria-label="Email subject" />
         </div>
         <article class="emailPaper">
-          <textarea id="emailBodyInput" rows="8" aria-label="Email body">${escapeHtml(prospect.draft)}</textarea>
+          <textarea id="emailBodyInput" rows="8" aria-label="Email body">${escapeHtml(body)}</textarea>
         </article>
         <div class="modalActions">
           <button class="btn" type="button" data-action="copy-email">Copy</button>
@@ -2404,18 +2407,22 @@ function emailSubject(prospect) {
   return `Idea for ${prospect.company}`;
 }
 
-function emailBody(prospect, subject = emailSubject(prospect), body = prospect.draft) {
+function emailBody(prospect, subject = emailSubject(prospect), body = draftBody(prospect)) {
   return `Subject: ${subject}\n\n${body}`;
+}
+
+function draftBody(prospect) {
+  return prospect.draft || buildOutreachEmail(prospect).body;
 }
 
 function currentEmailDraft(prospect) {
   return {
     subject: $("emailSubjectInput")?.value || emailSubject(prospect),
-    body: $("emailBodyInput")?.value || prospect.draft,
+    body: $("emailBodyInput")?.value || draftBody(prospect),
   };
 }
 
-function mailtoUrl(prospect, subject = emailSubject(prospect), body = prospect.draft) {
+function mailtoUrl(prospect, subject = emailSubject(prospect), body = draftBody(prospect)) {
   return `mailto:${encodeURIComponent(prospect.contact.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -2446,7 +2453,7 @@ function insertMention(label) {
 }
 
 function openCommandDrawer(scope = "card") {
-  const prospect = scope === "card" && state.prototypeView === "deck" ? activeProspect() : null;
+  const prospect = scope === "card" && ["deck", "dossier"].includes(state.prototypeView) ? activeProspect() : null;
   state.commandOpen = true;
   state.commandScopedProspectId = prospect?.id || null;
   state.commandResult = "";
@@ -2856,8 +2863,8 @@ function bindPrototypeEvents() {
     button.addEventListener("click", () => {
       const prospect = activeProspect();
       recordPrototypeActivity("Call queued", prospect, prospect.contact.phone || "No phone available");
-      markActed(prospect);
-      moveToNextProspect();
+      savePrototypeState();
+      renderActPrototype();
     });
   }
   for (const button of page.querySelectorAll("[data-action='email']")) {
@@ -3045,8 +3052,8 @@ window.addEventListener("keydown", (event) => {
     } else if (activeProspect().contact.phone) {
       const prospect = activeProspect();
       recordPrototypeActivity("Call queued", prospect, prospect.contact.phone);
-      markActed(prospect);
-      moveToNextProspect();
+      savePrototypeState();
+      renderActPrototype();
     }
   }
 });
