@@ -170,6 +170,18 @@ h4 {
   background: var(--accent-hover);
 }
 
+.btn-dark {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: var(--weight-semibold);
+}
+
+.btn-dark:hover {
+  border-color: var(--body);
+  background: var(--body);
+}
+
 .btn-ghost {
   border-color: transparent;
   background: transparent;
@@ -1699,7 +1711,6 @@ h4 {
 .leadBlock p,
 .substanceBlock p,
 .angleBlock p,
-.draftPanel p,
 .detailPanel p {
   margin: var(--space-3) 0 0;
 }
@@ -1791,7 +1802,6 @@ h4 {
 }
 
 .surfaceHeader h1,
-.hypothesisMain h2,
 .detailPanel h2,
 .replyCard h2,
 .funnelStage h2 {
@@ -2112,28 +2122,12 @@ h4 {
   font-weight: var(--weight-semibold);
 }
 
-.hypothesisPanel,
-.dossierGrid,
 .offeringGrid,
 .funnelGrid {
   display: grid;
   gap: 14px;
 }
 
-.dossierHeaderActions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hypothesisPanel {
-  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr);
-}
-
-.hypothesisMain,
-.verificationRail,
 .detailPanel,
 .replyCard,
 .funnelStage {
@@ -2143,64 +2137,11 @@ h4 {
   padding: 18px;
 }
 
-.hypothesisMain > span,
 .panelTitle span,
 .funnelStage span {
   color: var(--whynow-label);
   font-size: 12px;
   font-weight: var(--weight-semibold);
-}
-
-.hypothesisMain h2 {
-  margin: 6px 0 0;
-  font-size: 24px;
-  line-height: 1.18;
-  letter-spacing: 0;
-}
-
-.hypothesisMain p {
-  margin: 8px 0 0;
-}
-
-.whyNowInline {
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--whynow-bg);
-  border: 1px solid var(--whynow-border);
-}
-
-.whyNowInline.relationship {
-  background: var(--wayin-bg);
-  border-color: var(--wayin-border);
-}
-
-.verificationRail {
-  display: grid;
-  align-content: start;
-  gap: 10px;
-}
-
-.verificationRail p {
-  margin: 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--muted);
-}
-
-.verificationRail strong {
-  display: block;
-  color: var(--ink);
-}
-
-.dossierGrid {
-  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
-  align-items: start;
-}
-
-.evidencePanel,
-.computePanel {
-  grid-row: span 2;
 }
 
 .panelTitle {
@@ -2259,101 +2200,9 @@ h4 {
   max-width: 100%;
 }
 
-.contactPanel {
-  display: grid;
-  gap: 12px;
-}
-
-.contactPanel .contactIdentity {
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-}
-
-.contactPanel .contactIdentity span {
-  display: block;
-  color: var(--muted);
-}
-
-.dossierChannels {
-  justify-content: flex-start;
-}
-
-.computePanel {
-  display: grid;
-  gap: 10px;
-}
-
-.computeStep {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--fill-subtle);
-}
-
-.computeStep > span {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-weight: var(--weight-semibold);
-  font-size: 12px;
-}
-
-.computeStep p {
-  margin: 2px 0 0;
-  color: var(--muted);
-}
-
-.computeStep em {
-  color: var(--muted);
-  font-style: normal;
-  font-weight: var(--weight-semibold);
-}
-
 .trailLine {
   padding-left: 12px;
   border-left: 3px solid var(--wayin-border);
-}
-
-.profilePanel dl {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-
-.profilePanel dl div {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  gap: 10px;
-}
-
-.profilePanel dt {
-  color: var(--muted);
-}
-
-.profilePanel dd {
-  margin: 0;
-}
-
-.draftPanel {
-  align-content: start;
-}
-
-.draftPanel > p {
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  line-height: 1.55;
 }
 
 .researchBrief {
@@ -2479,6 +2328,516 @@ h4 {
   box-shadow: none;
   color: var(--body);
   border-radius: 8px;
+}
+
+.dossierView {
+  min-height: 100vh;
+  display: grid;
+  align-content: start;
+  gap: var(--space-9);
+  padding: var(--space-9);
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
+.dossierTopbar {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.dossierBack {
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dossierOverview {
+  display: grid;
+  gap: var(--space-6);
+  padding-bottom: var(--space-9);
+  border-bottom: 1px solid var(--line);
+}
+
+.profileIdentity {
+  display: grid;
+  grid-template-columns: var(--space-11) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.profileMark {
+  width: var(--space-11);
+  height: var(--space-11);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--elev-1);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+  font-weight: var(--weight-semibold);
+}
+
+.dossierOverview h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-3xl);
+  line-height: var(--lh-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.dossierDescriptor {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+}
+
+.dossierRail a {
+  color: var(--accent);
+}
+
+.dossierLayout {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 680px) 320px;
+  gap: var(--space-10);
+  align-items: start;
+  justify-content: center;
+}
+
+.dossierNarrative {
+  display: grid;
+  gap: var(--space-9);
+  width: 100%;
+  max-width: 680px;
+}
+
+.dossierSection {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dossierOverview .section-header,
+.dossierSection .section-header,
+.railCard > .section-header,
+.proofCard .section-header {
+  color: var(--body);
+  font-weight: var(--weight-semibold);
+}
+
+.profileLead {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--text-md);
+  line-height: 1.65;
+  font-weight: var(--weight-regular);
+}
+
+.profileFactGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.profileFact {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.profileFact span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.profileFact strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.profileSubsection {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.profileSubsection p {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+}
+
+.serviceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.serviceChips span {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--space-8);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--body);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-medium);
+}
+
+.dossierSection p,
+.dossierList {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+  font-weight: var(--weight-regular);
+}
+
+.dossierSection strong {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+.dossierSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.dossierList {
+  padding-left: var(--space-7);
+}
+
+.dossierList li + li {
+  margin-top: var(--space-2);
+}
+
+.opportunityProfile {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.opportunityLead {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  line-height: var(--lh-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.opportunitySignals {
+  display: grid;
+  gap: var(--space-5);
+  padding-left: var(--space-5);
+  border-left: 2px solid var(--line);
+}
+
+.opportunitySignal {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.opportunitySignal strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.opportunitySignal p {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+}
+
+.opportunityChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.opportunityChips span {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--space-8);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--fill-subtle);
+  color: var(--body);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-medium);
+}
+
+.activityFeedSection {
+  gap: var(--space-5);
+}
+
+.activityFeed {
+  display: grid;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.activityFeedItem {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-5);
+  padding: var(--space-5) 0;
+}
+
+.activityFeedItem + .activityFeedItem {
+  border-top: 1px solid var(--line);
+}
+
+.activityFeedItem span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+}
+
+.activityFeedItem p {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
+
+.dossierRail {
+  display: grid;
+  gap: var(--space-5);
+  position: sticky;
+  top: var(--space-8);
+}
+
+.railCard {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--pad-compact);
+  border-color: color-mix(in srgb, var(--line) 70%, transparent);
+  background: var(--surface);
+}
+
+.railCard dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.railCard .kv-row {
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: 0;
+}
+
+.railCard dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+}
+
+.railCard dd {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  overflow-wrap: anywhere;
+}
+
+.statusCues {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.statusCue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: var(--space-8);
+}
+
+.statusCue > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.statusCue .badge {
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+
+.depthIndicator {
+  display: grid;
+  grid-template-columns: repeat(3, 22px) auto;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.depthIndicator span {
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+}
+
+.depthIndicator span.active {
+  background: var(--accent);
+}
+
+.depthIndicator strong {
+  margin-left: var(--space-2);
+  color: var(--body);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+}
+
+.peopleList {
+  display: grid;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.personRow {
+  display: grid;
+  grid-template-columns: var(--space-10) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-5) 0;
+}
+
+.personRow + .personRow {
+  border-top: 1px solid var(--line);
+}
+
+.personIdentity {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.personIdentity strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+  font-weight: var(--weight-semibold);
+}
+
+.personIdentity span,
+.personIdentity p,
+.emptyPeople {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
+
+.personIdentity p {
+  margin-top: var(--space-2);
+}
+
+.personReach {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.personReach .btn {
+  width: var(--space-8);
+  height: var(--space-8);
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
+}
+
+.peopleRailCard .emptyPeople {
+  margin: 0;
+}
+
+.caveatsRailCard {
+  gap: var(--space-4);
+}
+
+.caveatsRailCard ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-6);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
+
+.caveatsRailCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
+
+.proofCard summary {
+  display: grid;
+  gap: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.proofCard summary::-webkit-details-marker {
+  display: none;
+}
+
+.proofCard summary strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+}
+
+.proofCard summary small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.proofCard .sourceList {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.proofCard .evidence-row {
+  text-decoration: none;
 }
 
 .replyList {
@@ -3024,6 +3383,21 @@ textarea {
   color: var(--accent-fg);
 }
 
+@media (max-width: 1120px) {
+  .dossierTopbar,
+  .dossierLayout {
+    width: min(100%, 680px);
+  }
+
+  .dossierLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .dossierRail {
+    position: static;
+  }
+}
+
 @media (max-width: 760px) {
   .kindlingShell,
   .kindlingShell.sidebarClosed,
@@ -3110,6 +3484,23 @@ textarea {
   .deckHeaderActions button,
   .emptyActions button {
     flex: 1 1 130px;
+  }
+
+  .dossierLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .profileFactGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dossierRail {
+    position: static;
+  }
+
+  .dossierSectionHeader {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .viewToggle {
@@ -3199,8 +3590,6 @@ textarea {
   .prospectHeader,
   .contactRow,
   .replyCard,
-  .hypothesisPanel,
-  .dossierGrid,
   .briefBands,
   .briefColumns,
   .offeringGrid,
