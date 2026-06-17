@@ -1,6 +1,6 @@
 const PROFILE_CACHE_KEY = "chat_wapp_profiles_v1";
 const PIPELINES_CACHE_KEY = "chat_wapp_pipelines_v1";
-const KINDLING_DECK_RESET_KEY = "kindling_deck_reset_2026_06_16_supplied_company_deck";
+const KINDLING_DECK_RESET_KEY = "kindling_deck_reset_2026_06_17_call_action_reset";
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROFILE_RELAYS = [
   "wss://relay.damus.io",
@@ -1660,28 +1660,33 @@ function renderDeckOverview(prospects, progress) {
           <small>${progress.remaining} remaining from ${progress.total}</small>
         </div>
       </header>
-      <section class="overviewList" aria-label="Today's deck overview">
-        ${prospects.map((item, index) => `
-          <article class="card overviewCard ${item.id === state.activeProspectId ? "selected" : ""}">
-            <button class="btn btn-ghost overviewMain" type="button" data-focus-prospect="${item.id}">
-              <header>
-                <span>${item.offering}</span>
-                <strong>${item.company}</strong>
-              </header>
-              <section class="callout ${item.whyNow ? "callout-whynow" : "callout-wayin relationship"}">
-                <em class="section-header">${item.whyNow ? "Why now" : "Way in"}</em>
-                <p>${item.whyNow || item.gap}</p>
-              </section>
-              <footer>
-                <span class="warmDot ${item.warmth}" title="${item.warmth}"></span>
-                <small>${item.warmth}</small>
-                <small>${item.fitScore} fit</small>
-              </footer>
-            </button>
-            <button class="btn" type="button" ${index === 0 ? "disabled" : ""} data-pull-top="${item.id}">Pull to top</button>
-          </article>
-        `).join("")}
-      </section>
+      <div class="overviewStage">
+        <section class="overviewList" aria-label="Today's deck overview">
+          ${prospects.map((item, index) => {
+            const summary = cardSubstanceSummary(item);
+            return `
+              <article class="card overviewCard ${item.id === state.activeProspectId ? "selected" : ""}">
+                <button class="btn btn-ghost overviewMain" type="button" data-focus-prospect="${item.id}">
+                  <header>
+                    <div class="overviewConfidenceRow">
+                      <span class="badge badge-neutral confidenceCue" title="${confidenceTooltip(item)}">${formatConfidence(item.confidence)}</span>
+                    </div>
+                    <strong>${item.company}</strong>
+                    <span>${prospectMetadata(item)}</span>
+                  </header>
+                  ${summary ? `
+                    <section class="overviewSnapshot">
+                      <em class="section-header">Snapshot</em>
+                      <p>${summary}</p>
+                    </section>
+                  ` : ""}
+                </button>
+                <button class="btn overviewPull" type="button" ${index === 0 ? "disabled" : ""} data-pull-top="${item.id}">Pull to top</button>
+              </article>
+            `;
+          }).join("")}
+        </section>
+      </div>
     </div>
   `;
 }
