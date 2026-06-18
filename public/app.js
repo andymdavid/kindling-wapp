@@ -1704,16 +1704,19 @@ function renderDeckView() {
           </div>
         </header>
         <section class="emptyDeck">
-          <h1>You've cleared today's deck.</h1>
-          <p>You're done with today's dealt stack. Replies are the only thing that can pull you back into active selling.</p>
+          <span class="section-header">Deck clear</span>
+          <h1>Today's stack is done.</h1>
+          <p>You worked the finite pile. Handle live replies now, or deliberately open more supply.</p>
           <div class="emptyStats" aria-label="Today's deck results">
             <span><strong>${state.actedProspects.length}</strong> acted</span>
             <span><strong>${state.snoozedProspects.length}</strong> snoozed</span>
             <span><strong>${state.dismissedProspects.length}</strong> dismissed</span>
           </div>
           <div class="emptyActions">
-            <button class="btn btn-primary primaryAction" type="button" data-action="explore-next-tier">Explore next tier</button>
-            <button type="button" data-action="replay-deck">Replay today's deck</button>
+            <button class="btn btn-primary primaryAction" type="button" data-view="companies">Review outcomes</button>
+            <button class="btn" type="button" data-action="explore-next-tier">Explore next tier</button>
+            <button class="btn btn-ghost" type="button" data-action="replay-deck">Replay deck</button>
+            <button class="btn btn-ghost" type="button" data-view="offerings">Tune offerings</button>
           </div>
         </section>
       </div>
@@ -2230,6 +2233,10 @@ function renderDossierView(prospect) {
               <div class="statusCue">
                 <span>Profile depth</span>
                 ${profileDepthIndicator(prospect)}
+              </div>
+              <div class="statusCue outcomeStatusCue">
+                <span>Outcome</span>
+                ${outcomeSelect(prospect.id, true)}
               </div>
             </div>
           </section>
