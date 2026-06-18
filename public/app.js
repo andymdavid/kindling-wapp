@@ -8,6 +8,15 @@ const PROFILE_RELAYS = [
   "wss://relay.primal.net",
 ];
 
+const OUTCOME_STATUSES = [
+  { key: "not_contacted", label: "Not contacted", shortLabel: "Not contacted", className: "neutral", icon: "○" },
+  { key: "awaiting", label: "Contacted — awaiting outcome", shortLabel: "Contacted", className: "warning", icon: "◐" },
+  { key: "replied", label: "Replied", shortLabel: "Replied", className: "success", icon: "●" },
+  { key: "booked", label: "Booked / meeting", shortLabel: "Booked", className: "success", icon: "◆" },
+  { key: "not_interested", label: "Not interested", shortLabel: "Not interested", className: "danger", icon: "×" },
+  { key: "no_response", label: "No response", shortLabel: "No response", className: "muted", icon: "–" },
+];
+
 const state = {
   token: localStorage.getItem("chat_wapp_token") || "",
   me: null,
@@ -25,6 +34,10 @@ const state = {
   snoozedProspects: loadPrototypeList("kindling_snoozed"),
   actedProspects: loadPrototypeList("kindling_acted"),
   prototypeActivity: loadPrototypeList("kindling_activity"),
+  outcomeByProspect: loadPrototypeMap("kindling_outcomes"),
+  crmSelected: [],
+  crmFilters: { search: "", industry: "", location: "", fit: "", warmth: "", outcome: "" },
+  crmSort: { key: "company", direction: "asc" },
   deckViewMode: sessionStorage.getItem("kindling_deck_view_mode") || "focused",
   deckOrder: loadSessionList("kindling_deck_order"),
   sidebarCollapsed: sessionStorage.getItem("kindling_sidebar_collapsed") === "1",
@@ -774,6 +787,15 @@ function loadPrototypeList(key) {
   }
 }
 
+function loadPrototypeMap(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function loadSessionList(key) {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(key) || "[]");
@@ -1315,6 +1337,7 @@ function savePrototypeState() {
   localStorage.setItem("kindling_snoozed", JSON.stringify(state.snoozedProspects));
   localStorage.setItem("kindling_acted", JSON.stringify(state.actedProspects));
   localStorage.setItem("kindling_activity", JSON.stringify(state.prototypeActivity.slice(0, 12)));
+  localStorage.setItem("kindling_outcomes", JSON.stringify(state.outcomeByProspect));
   sessionStorage.setItem("kindling_deck_view_mode", state.deckViewMode);
   sessionStorage.setItem("kindling_deck_order", JSON.stringify(normalizedDeckOrder()));
 }
@@ -1362,22 +1385,20 @@ function applyOneTimeDeckReset() {
 
 function greetingState() {
   const progress = deckProgress();
-  const openRepliesCount = kindlingData.replies.length;
-  const quietThreads = kindlingData.replies
-    .filter((thread) => thread.state === "gone quiet")
-    .map((thread) => ({ ...thread, quietDays: Number.parseInt(thread.age, 10) || 0 }))
+  const awaitingOutcomes = awaitingOutcomeProspects()
+    .map((prospect) => ({ prospect, quietDays: daysSinceLastTouch(prospect.id) }))
     .sort((a, b) => b.quietDays - a.quietDays);
-  const coldest = quietThreads[0];
+  const coldest = awaitingOutcomes[0];
   return {
     firstName: "Adam",
     deckTotal: progress.total,
     deckRemaining: progress.remaining,
     deckStarted: progress.completed > 0,
     lightDeckThreshold: 3,
-    openRepliesCount,
+    openOutcomesCount: awaitingOutcomes.length,
     coldestQuietDays: coldest?.quietDays || 0,
-    coldestQuietContactFirstName: coldest?.contact?.split(" ")[0] || "",
-    quietThresholdDays: 3,
+    coldestQuietContactFirstName: coldest?.prospect?.company || "",
+    quietThresholdDays: 2,
   };
 }
 
@@ -1396,7 +1417,7 @@ function greetingCopy() {
 
   if (details.deckTotal === 0) status = "Nothing queued. Tune an offering.";
   else if (details.deckRemaining === 0 && hasQuietThread) status = `${details.coldestQuietContactFirstName} needs a nudge.`;
-  else if (details.deckRemaining === 0 && details.openRepliesCount > 0) status = `${details.openRepliesCount} replies to move.`;
+  else if (details.deckRemaining === 0 && details.openOutcomesCount > 0) status = `${details.openOutcomesCount} outcomes to resolve.`;
   else if (details.deckRemaining === 0) status = "All clear. Nice work.";
   else if (hasQuietThread) status = `${details.deckRemaining} left. Nudge ${details.coldestQuietContactFirstName}.`;
   else if (details.deckStarted) status = `${details.deckRemaining} left. Keep the run going.`;
@@ -1452,8 +1473,94 @@ function recordPrototypeActivity(type, prospect, detail) {
   ].slice(0, 12);
 }
 
+function outcomeDefinition(status) {
+  return OUTCOME_STATUSES.find((item) => item.key === status) || OUTCOME_STATUSES[0];
+}
+
+function prospectOutcome(prospectId) {
+  return state.outcomeByProspect[prospectId] || { status: "not_contacted", lastTouch: "", events: [] };
+}
+
+function setOutcomeStatus(prospectId, status, detail = "Status updated") {
+  const prospect = kindlingData.prospects.find((item) => item.id === prospectId);
+  if (!prospect) return;
+  const current = prospectOutcome(prospectId);
+  const today = new Date().toISOString().slice(0, 10);
+  const lastTouch = status === "awaiting" || status === "replied" || status === "booked" || status === "not_interested" || status === "no_response"
+    ? today
+    : current.lastTouch || "";
+  state.outcomeByProspect = {
+    ...state.outcomeByProspect,
+    [prospectId]: {
+      status,
+      lastTouch,
+      events: [
+        { status, detail, at: Date.now() },
+        ...(current.events || []),
+      ].slice(0, 8),
+    },
+  };
+  recordPrototypeActivity("Outcome updated", prospect, `${outcomeDefinition(status).label}: ${detail}`);
+  savePrototypeState();
+}
+
+function outcomePill(prospectId) {
+  const outcome = prospectOutcome(prospectId);
+  const def = outcomeDefinition(outcome.status);
+  return `<span class="outcomePill ${def.className}"><em aria-hidden="true">${def.icon}</em>${def.shortLabel}</span>`;
+}
+
+function outcomeMenu(prospectId) {
+  const current = prospectOutcome(prospectId).status;
+  return `
+    <details class="outcomeMenu">
+      <summary aria-label="Change outcome status">${outcomePill(prospectId)}</summary>
+      <div>
+        ${OUTCOME_STATUSES.map((status) => `
+          <button type="button" class="${status.key === current ? "active" : ""}" data-outcome-set="${prospectId}" data-outcome-status="${status.key}">
+            <span class="outcomePill ${status.className}"><em aria-hidden="true">${status.icon}</em>${status.shortLabel}</span>
+          </button>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function outcomeSelect(prospectId, compact = false) {
+  const current = prospectOutcome(prospectId).status;
+  return `
+    <select class="outcomeSelect ${compact ? "compact" : ""}" data-outcome-prospect="${prospectId}" aria-label="Outcome status">
+      ${OUTCOME_STATUSES.map((status) => `<option value="${status.key}" ${status.key === current ? "selected" : ""}>${status.label}</option>`).join("")}
+    </select>
+  `;
+}
+
+function lastTouchLabel(prospectId) {
+  const value = prospectOutcome(prospectId).lastTouch;
+  if (!value) return "—";
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { day: "2-digit", month: "short" });
+}
+
+function daysSinceLastTouch(prospectId) {
+  const value = prospectOutcome(prospectId).lastTouch;
+  if (!value) return 0;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 0;
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function awaitingOutcomeProspects() {
+  return kindlingData.prospects.filter((prospect) => {
+    const outcome = prospectOutcome(prospect.id);
+    if (outcome.status !== "awaiting" || !outcome.lastTouch) return false;
+    return daysSinceLastTouch(prospect.id) >= 2;
+  });
+}
+
 function renderActPrototype() {
   const page = $("actPage");
+  if (state.prototypeView === "replies") state.prototypeView = "companies";
   const view = state.prototypeView || "deck";
   const commandScope = view === "deck" && state.deckViewMode !== "overview" ? "card" : "global";
   page.innerHTML = `
@@ -1494,7 +1601,7 @@ function renderPrototypeNav(active) {
   const progress = deckProgress();
   const items = [
     { id: "deck", label: "Deck", icon: "layers", count: progress.remaining, countType: "work" },
-    { id: "replies", label: "Replies", icon: "inbox", count: kindlingData.replies.length, countType: "work" },
+    { id: "companies", label: "Companies", icon: "inbox", count: awaitingOutcomeProspects().length, countType: "work" },
     { id: "offerings", label: "Offerings", icon: "sliders", count: 3, countType: "inventory" },
     { id: "pipeline", label: "Pipeline", icon: "workflow", count: "", countType: "none" },
   ];
@@ -1571,7 +1678,7 @@ function iconSvg(name) {
 }
 
 function renderPrototypeView(view) {
-  if (view === "replies") return renderRepliesView();
+  if (view === "companies") return renderCompaniesView();
   if (view === "dossier") return renderDossierView(activeProspect());
   if (view === "offerings") return renderOfferingsView();
   if (view === "pipeline") return renderPipelineView();
@@ -1588,9 +1695,7 @@ function renderDeckView() {
       <div class="deckViewport">
         <header class="homeTopbar">
           <div></div>
-          <div class="deckHeaderActions">
-            <button type="button" data-view="replies">Replies ${kindlingData.replies.length}</button>
-          </div>
+          <div class="deckHeaderActions"></div>
         </header>
         ${renderGreeting()}
         <header class="deckHeader">
@@ -1621,7 +1726,6 @@ function renderDeckView() {
         <div></div>
         <div class="deckHeaderActions">
           ${renderDeckModeToggle("focused")}
-          <button type="button" data-view="replies">Replies ${kindlingData.replies.length}</button>
         </div>
       </header>
       ${renderGreeting()}
@@ -1655,7 +1759,6 @@ function renderDeckOverview(prospects, progress) {
         <div></div>
         <div class="deckHeaderActions">
           ${renderDeckModeToggle("overview")}
-          <button type="button" data-view="replies">Replies ${kindlingData.replies.length}</button>
         </div>
       </header>
       ${renderGreeting()}
@@ -1910,6 +2013,10 @@ function renderProspectCard(prospect) {
       </section>
       <section class="actZone">
         ${renderProspectContact(prospect)}
+        <div class="cardOutcome">
+          <span class="section-header">Outcome</span>
+          ${outcomeSelect(prospect.id, true)}
+        </div>
         <footer class="cardActions">
           <button class="btn btn-ghost" type="button" data-action="dismiss"><span>Dismiss</span><kbd>←</kbd></button>
           <button class="btn btn-ghost" type="button" data-action="snooze"><span>Snooze</span><kbd>↑</kbd></button>
@@ -2146,6 +2253,7 @@ function renderDossierView(prospect) {
           </details>
         </aside>
       </section>
+      <div class="dossierBottomPad" aria-hidden="true"></div>
     </article>
   `;
 }
@@ -2177,8 +2285,8 @@ function statusLabel(status = "") {
 
 function fitBadgeClass(score = 0) {
   if (score >= 85) return "badge-success";
-  if (score >= 70) return "badge-info";
-  return "badge-warning";
+  if (score >= 70) return "badge-warning";
+  return "badge-neutral";
 }
 
 function confidenceTier(confidence = 0) {
@@ -2402,36 +2510,248 @@ function renderResearchBrief(brief) {
   `;
 }
 
-function renderBriefList(items) {
-  return `<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
-}
-
-function renderRepliesView() {
+function renderCompaniesView() {
+  const rows = filteredCompanyRows();
+  const total = kindlingData.prospects.length;
+  const selected = state.crmSelected.filter((id) => kindlingData.prospects.some((prospect) => prospect.id === id));
+  state.crmSelected = selected;
   return `
-    <section class="listSurface">
-      <header class="surfaceHeader">
+    <section class="companiesPage">
+      <header class="companiesHeader">
         <div>
-          <p>Replies</p>
-          <h1>Live threads</h1>
-          <span>Sorted by urgency, coldest first.</span>
+          <span class="section-header">Companies</span>
+          <h1>Company book</h1>
+          <p>Search the enriched company set, track manual outreach outcomes, and build focused lists.</p>
         </div>
-        <button type="button" data-view="deck">Back to deck</button>
       </header>
-      <div class="replyList">
-        ${kindlingData.replies.map((thread) => `
-          <article class="replyCard">
-            <div class="replyTime ${thread.urgency}">${thread.age}</div>
-            <div>
-              <span class="statePill">${thread.state}</span>
-              <h2>${thread.contact} - ${thread.company}</h2>
-              <p>${thread.gist}</p>
-            </div>
-            <button class="btn btn-primary primaryAction" type="button" data-action="advance-thread">${thread.nextMove}</button>
-          </article>
-        `).join("")}
-      </div>
+      ${renderOutcomePrompt()}
+      <section class="companyFilters" aria-label="Company filters">
+        <label>
+          <span>Search</span>
+          <input type="search" value="${escapeHtml(state.crmFilters.search)}" placeholder="Company name" data-crm-filter="search" />
+        </label>
+        ${filterSelect("industry", "Industry", uniqueProspectValues((prospect) => prospect.industry || parseDescriptor(prospect.descriptor).industry))}
+        ${filterSelect("location", "Location", uniqueProspectValues((prospect) => prospect.location || parseDescriptor(prospect.descriptor).location))}
+        ${filterSelect("fit", "Fit", ["Strong", "Medium", "Light"])}
+        ${filterSelect("warmth", "Warmth", ["warm", "cold"])}
+        ${filterSelect("outcome", "Outcome", OUTCOME_STATUSES.map((status) => status.key), (key) => outcomeDefinition(key).shortLabel)}
+        <div class="filterActions">
+          <button class="btn btn-primary" type="button" data-action="apply-crm-filters">Apply</button>
+          <button class="btn" type="button" data-action="clear-crm-filters">Clear</button>
+        </div>
+      </section>
+      <section class="bulkBar ${selected.length ? "active" : ""}" aria-label="Bulk actions">
+        <span class="bulkSelection">${selected.length} selected</span>
+        <button class="btn" type="button" data-action="export-selected" ${selected.length ? "" : "disabled"}>Export selected</button>
+        <button class="btn" type="button" data-action="copy-selected-drafts" ${selected.length ? "" : "disabled"}>Copy drafts</button>
+        <select class="outcomeSelect compact" data-action="bulk-outcome" ${selected.length ? "" : "disabled"} aria-label="Set outcome for selected">
+          <option value="">Set status</option>
+          ${OUTCOME_STATUSES.map((status) => `<option value="${status.key}">${status.label}</option>`).join("")}
+        </select>
+        <button class="btn" type="button" data-action="add-selected-to-deck" ${selected.length ? "" : "disabled"}>Add to deck</button>
+        <button class="btn btn-ghost" type="button" data-action="snooze-selected" ${selected.length ? "" : "disabled"}>Snooze</button>
+      </section>
+      <section class="companyTable" aria-label="Companies table">
+        <header class="companyTableHead">
+          <span></span>
+          ${sortHeader("company", "Company")}
+          ${sortHeader("contact", "Contact")}
+          ${sortHeader("industry", "Industry")}
+          ${sortHeader("location", "Location")}
+          ${sortHeader("fit", "Fit", "fitCell")}
+          ${sortHeader("warmth", "Warmth", "warmthCellHead")}
+          ${sortHeader("outcome", "Outcome status")}
+          ${sortHeader("lastTouch", "Last touch", "lastTouchCell")}
+          <span></span>
+        </header>
+        <div class="companyRows">
+          ${rows.map(renderCompanyRow).join("") || `<p class="emptyTable">No companies match these filters.</p>`}
+        </div>
+      </section>
+      <div class="companiesBottomPad" aria-hidden="true"></div>
     </section>
   `;
+}
+
+function sortHeader(key, label, className = "") {
+  const active = state.crmSort.key === key;
+  const direction = active ? state.crmSort.direction : "";
+  const marker = active ? (direction === "asc" ? "↑" : "↓") : "↕";
+  return `<button class="sortHeader ${className} ${active ? "active" : ""}" type="button" data-crm-sort="${key}" aria-label="Sort by ${label}">${label}<span>${marker}</span></button>`;
+}
+
+function renderCompanyRow(prospect) {
+  const parsed = parseDescriptor(prospect.descriptor);
+  const person = kindlingModel.people.find((item) => item.id === prospect.modelRefs?.personId);
+  const isGeneric = /team|public contact path/i.test(`${person?.name || prospect.contact.name} ${person?.role || prospect.contact.role}`);
+  return `
+    <article class="companyRow list-row" data-company-row="${prospect.id}" tabindex="0" role="button" aria-label="Open dossier for ${prospect.company}">
+      <label class="rowCheck" aria-label="Select ${prospect.company}">
+        <input type="checkbox" data-select-company="${prospect.id}" ${state.crmSelected.includes(prospect.id) ? "checked" : ""} />
+      </label>
+      <div class="companyCell">
+        <strong>${prospect.company}</strong>
+      </div>
+      <div class="contactCell">
+        <span class="avatar" aria-hidden="true">${contactInitials(person?.name || prospect.contact.name)}</span>
+        <span>${isGeneric ? "General contact" : person?.name || prospect.contact.name}</span>
+      </div>
+      <span class="industryCell">${parsed.industry || "—"}</span>
+      <span class="locationCell">${parsed.location || "—"}</span>
+      <span class="badge fitCell ${fitBadgeClass(prospect.fitScore)}">${fitTier(prospect.fitScore)}</span>
+      <span class="warmthCell"><i class="warmDot ${prospect.warmth}" aria-hidden="true"></i>${prospect.warmth}</span>
+      <div class="outcomeCell">
+        ${outcomeMenu(prospect.id)}
+      </div>
+      <span class="lastTouchCell">${lastTouchLabel(prospect.id)}</span>
+      <details class="rowMenu">
+        <summary aria-label="More actions">...</summary>
+        <div>
+          ${outcomeSelect(prospect.id, true)}
+          <button type="button" data-view="dossier" data-prospect="${prospect.id}">Open dossier</button>
+          <button type="button" data-row-copy-draft="${prospect.id}">Copy draft</button>
+          <button type="button" data-row-add-deck="${prospect.id}">Add to deck</button>
+          <button type="button" data-row-snooze="${prospect.id}">Snooze</button>
+        </div>
+      </details>
+    </article>
+  `;
+}
+
+function renderOutcomePrompt() {
+  const awaiting = awaitingOutcomeProspects();
+  if (!awaiting.length) return "";
+  return `
+    <section class="outcomePrompt">
+      <span>${awaiting.length} contacted ${awaiting.length === 1 ? "company needs" : "companies need"} an outcome.</span>
+      <button class="btn btn-primary" type="button" data-status-filter="awaiting">Resolve now</button>
+    </section>
+  `;
+}
+
+function filterSelect(key, label, values, format = (value) => value) {
+  return `
+    <label>
+      <span>${label}</span>
+      <select data-crm-filter="${key}">
+        <option value="">All</option>
+        ${values.map((value) => `<option value="${escapeHtml(value)}" ${state.crmFilters[key] === value ? "selected" : ""}>${escapeHtml(format(value))}</option>`).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function uniqueProspectValues(getter) {
+  return [...new Set(kindlingData.prospects.map(getter).filter(Boolean))].sort();
+}
+
+function filteredCompanyRows() {
+  const filters = state.crmFilters;
+  const rows = kindlingData.prospects.filter((prospect) => {
+    const parsed = parseDescriptor(prospect.descriptor);
+    const haystack = prospect.company.toLowerCase();
+    if (filters.search && !haystack.includes(filters.search.toLowerCase())) return false;
+    if (filters.industry && parsed.industry !== filters.industry) return false;
+    if (filters.location && parsed.location !== filters.location) return false;
+    if (filters.fit && fitTier(prospect.fitScore) !== filters.fit) return false;
+    if (filters.warmth && prospect.warmth !== filters.warmth) return false;
+    if (filters.outcome && prospectOutcome(prospect.id).status !== filters.outcome) return false;
+    return true;
+  });
+  return sortCompanyRows(rows);
+}
+
+function sortCompanyRows(rows) {
+  const direction = state.crmSort.direction === "desc" ? -1 : 1;
+  const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+  return [...rows].sort((a, b) => {
+    const valueA = companySortValue(a, state.crmSort.key);
+    const valueB = companySortValue(b, state.crmSort.key);
+    if (typeof valueA === "number" && typeof valueB === "number") return (valueA - valueB) * direction;
+    return collator.compare(String(valueA || ""), String(valueB || "")) * direction;
+  });
+}
+
+function companySortValue(prospect, key) {
+  const parsed = parseDescriptor(prospect.descriptor);
+  const person = kindlingModel.people.find((item) => item.id === prospect.modelRefs?.personId);
+  const outcomeOrder = OUTCOME_STATUSES.map((status) => status.key);
+  if (key === "company") return prospect.company;
+  if (key === "contact") return person?.name || prospect.contact.name || "";
+  if (key === "industry") return parsed.industry || "";
+  if (key === "location") return parsed.location || "";
+  if (key === "fit") return prospect.fitScore || 0;
+  if (key === "warmth") return prospect.warmth === "warm" ? 1 : 0;
+  if (key === "outcome") return outcomeOrder.indexOf(prospectOutcome(prospect.id).status);
+  if (key === "lastTouch") {
+    const value = prospectOutcome(prospect.id).lastTouch;
+    return value ? new Date(`${value}T00:00:00`).getTime() : 0;
+  }
+  return prospect.company;
+}
+
+function selectedProspects() {
+  const selected = new Set(state.crmSelected);
+  return kindlingData.prospects.filter((prospect) => selected.has(prospect.id));
+}
+
+function addProspectsToDeck(ids = []) {
+  state.dismissedProspects = state.dismissedProspects.filter((id) => !ids.includes(id));
+  state.snoozedProspects = state.snoozedProspects.filter((id) => !ids.includes(id));
+  state.actedProspects = state.actedProspects.filter((id) => !ids.includes(id));
+  state.deckOrder = [...ids, ...normalizedDeckOrder().filter((id) => !ids.includes(id))];
+  state.deckViewMode = "focused";
+  state.activeProspectId = ids[0] || state.activeProspectId;
+  savePrototypeState();
+}
+
+function companyCsv(prospects) {
+  const rows = [["Company", "Contact", "Email", "Phone", "Industry", "Location", "Outcome", "Last touch", "Draft"]];
+  for (const prospect of prospects) {
+    const parsed = parseDescriptor(prospect.descriptor);
+    rows.push([
+      prospect.company,
+      prospect.contact.name,
+      prospect.contact.email,
+      prospect.contact.phone,
+      parsed.industry,
+      parsed.location,
+      outcomeDefinition(prospectOutcome(prospect.id).status).label,
+      prospectOutcome(prospect.id).lastTouch,
+      draftBody(prospect),
+    ]);
+  }
+  return rows.map((row) => row.map((cell) => `"${String(cell || "").replaceAll('"', '""')}"`).join(",")).join("\n");
+}
+
+function exportSelectedCompanies() {
+  const csv = companyCsv(selectedProspects());
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "kindling-companies.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copySelectedDrafts() {
+  const text = selectedProspects().map((prospect) => emailBody(prospect)).join("\n\n---\n\n");
+  if (navigator.clipboard) await navigator.clipboard.writeText(text).catch(() => undefined);
+  for (const prospect of selectedProspects()) setOutcomeStatus(prospect.id, "awaiting", "Draft copied for manual sending");
+  state.crmSelected = [];
+  renderActPrototype();
+}
+
+async function copyDraftForProspect(prospectId) {
+  const prospect = kindlingData.prospects.find((item) => item.id === prospectId);
+  if (!prospect) return;
+  if (navigator.clipboard) await navigator.clipboard.writeText(emailBody(prospect)).catch(() => undefined);
+  setOutcomeStatus(prospect.id, "awaiting", "Draft copied for manual sending");
+}
+
+function renderBriefList(items) {
+  return `<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
 }
 
 function renderOfferingsView() {
@@ -2968,6 +3288,126 @@ function bindPrototypeEvents() {
       renderActPrototype();
     });
   }
+  for (const input of page.querySelectorAll("[data-crm-filter]")) {
+    input.addEventListener("input", () => {
+      state.crmFilters = { ...state.crmFilters, [input.dataset.crmFilter]: input.value };
+    });
+    input.addEventListener("change", () => {
+      state.crmFilters = { ...state.crmFilters, [input.dataset.crmFilter]: input.value };
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-status-filter]")) {
+    button.addEventListener("click", () => {
+      state.crmFilters = { ...state.crmFilters, outcome: button.dataset.statusFilter };
+      state.prototypeView = "companies";
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-crm-sort]")) {
+    button.addEventListener("click", () => {
+      const key = button.dataset.crmSort;
+      const sameKey = state.crmSort.key === key;
+      state.crmSort = {
+        key,
+        direction: sameKey && state.crmSort.direction === "asc" ? "desc" : "asc",
+      };
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='apply-crm-filters']")) {
+    button.addEventListener("click", renderActPrototype);
+  }
+  for (const button of page.querySelectorAll("[data-action='clear-crm-filters']")) {
+    button.addEventListener("click", () => {
+      state.crmFilters = { search: "", industry: "", location: "", fit: "", warmth: "", outcome: "" };
+      renderActPrototype();
+    });
+  }
+  for (const checkbox of page.querySelectorAll("[data-select-company]")) {
+    checkbox.addEventListener("click", (event) => event.stopPropagation());
+    checkbox.addEventListener("change", () => {
+      const id = checkbox.dataset.selectCompany;
+      state.crmSelected = checkbox.checked
+        ? [...new Set([...state.crmSelected, id])]
+        : state.crmSelected.filter((item) => item !== id);
+      renderActPrototype();
+    });
+  }
+  for (const row of page.querySelectorAll("[data-company-row]")) {
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("input, select, button, summary, details, label")) return;
+      setPrototypeView("dossier", row.dataset.companyRow);
+    });
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") setPrototypeView("dossier", row.dataset.companyRow);
+    });
+  }
+  for (const select of page.querySelectorAll("[data-outcome-prospect]")) {
+    select.addEventListener("click", (event) => event.stopPropagation());
+    select.addEventListener("change", () => {
+      setOutcomeStatus(select.dataset.outcomeProspect, select.value, "Manual status update");
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-outcome-set]")) {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setOutcomeStatus(button.dataset.outcomeSet, button.dataset.outcomeStatus, "Manual status update");
+      renderActPrototype();
+    });
+  }
+  for (const select of page.querySelectorAll("[data-action='bulk-outcome']")) {
+    select.addEventListener("change", () => {
+      if (!select.value) return;
+      for (const id of state.crmSelected) setOutcomeStatus(id, select.value, "Bulk status update");
+      state.crmSelected = [];
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='export-selected']")) {
+    button.addEventListener("click", exportSelectedCompanies);
+  }
+  for (const button of page.querySelectorAll("[data-action='copy-selected-drafts']")) {
+    button.addEventListener("click", copySelectedDrafts);
+  }
+  for (const button of page.querySelectorAll("[data-action='add-selected-to-deck']")) {
+    button.addEventListener("click", () => {
+      addProspectsToDeck(state.crmSelected);
+      state.crmSelected = [];
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-action='snooze-selected']")) {
+    button.addEventListener("click", () => {
+      state.snoozedProspects = [...new Set([...state.snoozedProspects, ...state.crmSelected])];
+      state.crmSelected = [];
+      savePrototypeState();
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-row-copy-draft]")) {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      await copyDraftForProspect(button.dataset.rowCopyDraft);
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-row-add-deck]")) {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      addProspectsToDeck([button.dataset.rowAddDeck]);
+      renderActPrototype();
+    });
+  }
+  for (const button of page.querySelectorAll("[data-row-snooze]")) {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.snoozedProspects = [...new Set([...state.snoozedProspects, button.dataset.rowSnooze])];
+      savePrototypeState();
+      renderActPrototype();
+    });
+  }
   for (const button of page.querySelectorAll("[data-mention]")) {
     button.addEventListener("click", () => insertMention(button.dataset.mention));
   }
@@ -3090,21 +3530,13 @@ function bindPrototypeEvents() {
       moveToNextProspect();
     });
   }
-  for (const button of page.querySelectorAll("[data-action='send-email']")) {
-    button.addEventListener("click", () => {
-      const prospect = activeProspect();
-      recordPrototypeActivity("Draft reviewed", prospect, `Email path to ${prospect.contact.name}`);
-      markActed(prospect);
-      state.prototypeModal = null;
-      moveToNextProspect();
-    });
-  }
   for (const button of page.querySelectorAll("[data-action='copy-email']")) {
     button.addEventListener("click", async () => {
       const prospect = activeProspect();
       const draft = currentEmailDraft(prospect);
       if (navigator.clipboard) await navigator.clipboard.writeText(emailBody(prospect, draft.subject, draft.body)).catch(() => undefined);
       recordPrototypeActivity("Email copied", prospect, `Draft copied for ${prospect.contact.name}`);
+      setOutcomeStatus(prospect.id, "awaiting", "Draft copied for manual sending");
       state.commandResult = "Email copied to clipboard.";
       state.prototypeModal = null;
       renderActPrototype();
@@ -3115,6 +3547,7 @@ function bindPrototypeEvents() {
       const prospect = activeProspect();
       const draft = currentEmailDraft(prospect);
       recordPrototypeActivity("Mail opened", prospect, `Draft opened for ${prospect.contact.name}`);
+      setOutcomeStatus(prospect.id, "awaiting", "Draft opened in mail client");
       window.location.href = mailtoUrl(prospect, draft.subject, draft.body);
       state.prototypeModal = null;
       renderActPrototype();
@@ -3135,13 +3568,6 @@ function bindPrototypeEvents() {
       resetPrototypeDeckState();
       recordPrototypeActivity("Deck replayed", kindlingData.prospects[0], "Today reset for review");
       savePrototypeState();
-      renderActPrototype();
-    });
-  }
-  for (const button of page.querySelectorAll("[data-action='advance-thread']")) {
-    button.addEventListener("click", () => {
-      state.prototypeModal = "email";
-      state.activeProspectId = kindlingData.prospects[0]?.id || "";
       renderActPrototype();
     });
   }
