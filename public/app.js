@@ -816,6 +816,7 @@ function saveProfileCache() {
 function cachedProfile(pubkey) {
   const entry = state.profiles[pubkey];
   if (!entry || Date.now() - Number(entry.cachedAt || 0) > PROFILE_CACHE_TTL_MS) return null;
+  if (!entry.name && !entry.displayName && !entry.picture) return null;
   return entry;
 }
 
@@ -919,7 +920,7 @@ async function bootApp() {
     $("npub").textContent = state.me.npub;
     await renderRoute();
     void resolveCurrentUserProfile().then(() => {
-      if (state.route === "/" || state.route === "/act") renderActPrototype();
+      if (appRoute() === "/" || appRoute() === "/act") renderActPrototype();
     });
   } catch {
     logout();
@@ -1054,7 +1055,7 @@ async function resolveProfile(rule) {
     pubkey: rule.pubkey,
     name: typeof profile?.name === "string" ? profile.name : "",
     displayName: typeof profile?.display_name === "string" ? profile.display_name : typeof profile?.displayName === "string" ? profile.displayName : "",
-    picture: typeof profile?.picture === "string" ? profile.picture : "",
+    picture: typeof profile?.picture === "string" ? profile.picture : typeof profile?.image === "string" ? profile.image : typeof profile?.avatar === "string" ? profile.avatar : "",
     cachedAt: Date.now(),
   };
   state.profiles[rule.pubkey] = normalized;
@@ -1079,13 +1080,30 @@ async function resolveCurrentUserProfile() {
     if (pubkey) state.me.pubkey = pubkey;
   }
   if (!pubkey) return null;
+  if (window.nostr?.getProfile) {
+    const extensionProfile = await window.nostr.getProfile().catch(() => null);
+    if (extensionProfile && typeof extensionProfile === "object") {
+      state.profiles[pubkey] = {
+        pubkey,
+        name: typeof extensionProfile.name === "string" ? extensionProfile.name : "",
+        displayName: typeof extensionProfile.display_name === "string" ? extensionProfile.display_name : typeof extensionProfile.displayName === "string" ? extensionProfile.displayName : "",
+        picture: typeof extensionProfile.picture === "string" ? extensionProfile.picture : typeof extensionProfile.image === "string" ? extensionProfile.image : typeof extensionProfile.avatar === "string" ? extensionProfile.avatar : "",
+        cachedAt: Date.now(),
+      };
+      saveProfileCache();
+      if (state.profiles[pubkey].name || state.profiles[pubkey].displayName || state.profiles[pubkey].picture) return state.profiles[pubkey];
+    }
+  }
   return resolveProfile({ pubkey, npub: state.me.npub || pubkey });
 }
 
 async function fetchNostrProfile(pubkey) {
   const attempts = PROFILE_RELAYS.map((relay) => fetchProfileFromRelay(relay, pubkey));
-  const result = await Promise.any(attempts);
-  return result;
+  const results = await Promise.allSettled(attempts);
+  return results
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value)
+    .find((profile) => profile?.name || profile?.display_name || profile?.displayName || profile?.picture || profile?.image || profile?.avatar) || null;
 }
 
 function fetchProfileFromRelay(relayUrl, pubkey) {
@@ -1634,7 +1652,7 @@ function currentUserLabel() {
   const profile = currentUserProfile();
   const fullName = [state.me?.firstName || state.me?.first_name, state.me?.lastName || state.me?.last_name].filter(Boolean).join(" ");
   const profileFullName = [state.me?.profile?.firstName || state.me?.profile?.first_name, state.me?.profile?.lastName || state.me?.profile?.last_name].filter(Boolean).join(" ");
-  return fullName || profileFullName || profile?.displayName || profile?.name || state.me?.profile?.displayName || state.me?.profile?.display_name || state.me?.profile?.name || state.me?.name || "Nostr user";
+  return profile?.displayName || profile?.name || fullName || profileFullName || state.me?.profile?.displayName || state.me?.profile?.display_name || state.me?.profile?.name || state.me?.name || "Nostr user";
 }
 
 function currentUserDetail() {
